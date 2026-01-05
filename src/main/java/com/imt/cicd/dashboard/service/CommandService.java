@@ -2,6 +2,8 @@ package com.imt.cicd.dashboard.service;
 
 import com.imt.cicd.dashboard.model.PipelineExecution;
 import com.imt.cicd.dashboard.model.PipelineStatus;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
@@ -10,6 +12,9 @@ import java.io.InputStreamReader;
 
 @Service
 public class CommandService {
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     public void executeCommand(String command, File workingDir, PipelineExecution execution) throws Exception {
         ProcessBuilder builder = new ProcessBuilder();
@@ -30,7 +35,11 @@ public class CommandService {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                // TODO: Envoyer via WebSocket ici pour temps réel
+                // Sauvegarde en base
+                execution.appendLog(line);
+
+                // Envoi temps réel au front (Topic : /topic/logs/{id})
+                messagingTemplate.convertAndSend("/topic/logs/" + execution.getId(), line);
             }
         }
 
