@@ -1,0 +1,21 @@
+# Ignore les dossiers targets Maven
+**/target/
+
+# IDE
+.idea/
+*.iml
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Node/npm (si présents)
+node_modules/
+npm-debug.log
+
