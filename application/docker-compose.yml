@@ -1,0 +1,38 @@
+services:
+  # Service 1 : Ton application Spring Boot
+  app:
+    # Construit l'image à partir du Dockerfile local
+    build: .
+    # Nom du conteneur demandé
+    container_name: IMT-ArchitectureLogicielle-app
+    ports:
+      # Mappe le port 8080 de ta machine au port 8080 du conteneur
+      - "8080:8080"
+    # S'assure que la BDD démarre avant l'application
+    depends_on:
+      - db
+    environment:
+      # Override la config de application.properties
+      # 'db' est le nom du service MongoDB ci-dessous
+      # 'carrentaldb' est le nom de ta BDD
+      - SPRING_DATA_MONGODB_URI=mongodb://user:pass@db:27017/carrentaldb?authSource=admin
+
+  # Service 2 : La base de données MongoDB
+  db:
+    image: mongo
+    # Nom du conteneur demandé
+    container_name: IMT-ArchitectureLogicielle-db
+    ports:
+      # Mappe le port 27017 de ta machine à celui du conteneur
+      - "27017:27017"
+    environment:
+      # Identifiants pour la BDD
+      - MONGO_INITDB_ROOT_USERNAME=user
+      - MONGO_INITDB_ROOT_PASSWORD=pass
+    volumes:
+      # Permet de garder les données même si tu arrêtes le conteneur
+      - mongo-data:/data/db
+
+# Définit le volume pour la persistance des données
+volumes:
+  mongo-data:
