@@ -7,11 +7,14 @@ import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
 import {
     CheckCircle2, XCircle, Loader2, Clock,
-    ArrowLeft, Terminal, AlertTriangle
+    ArrowLeft, Terminal
 } from "lucide-react";
 import {getPipelineById} from "../api/cicdApi";
 
-// Définition des étapes basées sur vos logs Backend
+// Imports pour le WebSocket
+import {Client} from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
+
 const STEPS_DEFINITION = [
     {id: 1, label: "Clonage du Dépôt (Git)", marker: "--- ÉTAPE 1"},
     {id: 2, label: "Build & Test (Maven)", marker: "--- ÉTAPE 2"},
@@ -25,12 +28,9 @@ export default function PipelineDetail() {
     const [pipeline, setPipeline] = useState(null);
     const logsEndRef = useRef(null);
 
-    // Fonction pour analyser les logs et déduire l'état de chaque étape
+    // Fonction de parsing des étapes (inchangée)
     const getStepsStatus = (logs, globalStatus) => {
         if (!logs) logs = "";
-
-        let foundCurrent = false;
-
         return STEPS_DEFINITION.map((step, index) => {
             const isStarted = logs.includes(step.marker);
             const nextStep = STEPS_DEFINITION[index + 1];
@@ -41,33 +41,60 @@ export default function PipelineDetail() {
             if (isCompleted) {
                 status = "SUCCESS";
             } else if (isStarted) {
-                // Si l'étape a commencé mais que la suivante non...
                 if (globalStatus === "FAILED") {
-                    status = "FAILED"; // C'est ici que ça a planté
+                    status = "FAILED";
                 } else if (globalStatus === "SUCCESS") {
-                    status = "SUCCESS"; // Cas rare dernière étape
+                    status = "SUCCESS";
                 } else {
-                    status = "RUNNING"; // En cours
-                    foundCurrent = true;
+                    status = "RUNNING";
                 }
             }
-
             return {...step, status};
         });
     };
 
-    const fetchData = async () => {
-        const data = await getPipelineById(id);
-        if (data) setPipeline(data);
-    };
-
+    // 1. Chargement initial (HTTP classique)
     useEffect(() => {
-        fetchData();
-        const interval = setInterval(fetchData, 1000); // Mise à jour temps réel (1s)
-        return () => clearInterval(interval);
+        const fetchInitialData = async () => {
+            const data = await getPipelineById(id);
+            if (data) setPipeline(data);
+        };
+        fetchInitialData();
     }, [id]);
 
-    // Scroll automatique vers le bas des logs
+    // 2. Connexion WebSocket (Temps réel)
+    useEffect(() => {
+        const client = new Client({
+            // On utilise SockJS comme fallback (http://localhost:8080/ws défini dans WebSocketConfig.java)
+            webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
+
+            // Reconnexion automatique
+            reconnectDelay: 5000,
+
+            onConnect: () => {
+                console.log("Connecté au WebSocket !");
+                // Abonnement au topic spécifique de ce pipeline
+                client.subscribe(`/topic/pipeline/${id}`, (message) => {
+                    if (message.body) {
+                        const updatedPipeline = JSON.parse(message.body);
+                        setPipeline(updatedPipeline);
+                    }
+                });
+            },
+            onStompError: (frame) => {
+                console.error('Erreur Broker: ' + frame.headers['message']);
+            },
+        });
+
+        client.activate();
+
+        // Nettoyage lors du démontage du composant
+        return () => {
+            client.deactivate();
+        };
+    }, [id]);
+
+    // Scroll automatique vers le bas
     useEffect(() => {
         if (pipeline?.status === "RUNNING") {
             logsEndRef.current?.scrollIntoView({behavior: "smooth"});
@@ -89,7 +116,7 @@ export default function PipelineDetail() {
                 <Topbar title={`Pipeline #${pipeline.id}`}/>
 
                 <main className="p-6 space-y-6 max-w-6xl mx-auto w-full">
-                    {/* Header avec Bouton Retour et Statut Global */}
+                    {/* Header */}
                     <div className="flex items-center justify-between">
                         <Link to="/">
                             <Button variant="ghost" className="gap-2">
@@ -100,43 +127,31 @@ export default function PipelineDetail() {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                        {/* COLONNE GAUCHE : Étapes (Alignement Colonnes) */}
+                        {/* Étapes */}
                         <Card className="lg:col-span-1 h-fit">
                             <CardHeader>
                                 <CardTitle>Étapes du Processus</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-0">
-                                {/* Entête du "Tableau" */}
                                 <div className="grid grid-cols-12 text-xs font-semibold text-gray-400 mb-4 px-2">
                                     <div className="col-span-2 text-center">ÉTAT</div>
                                     <div className="col-span-10">NOM DE L'ÉTAPE</div>
                                 </div>
-
-                                {/* Liste des étapes */}
                                 <div className="space-y-4">
                                     {steps.map((step, idx) => (
                                         <div key={step.id} className="relative group">
-                                            {/* Ligne verticale de connexion */}
                                             {idx !== steps.length - 1 && (
                                                 <div
                                                     className={`absolute left-[1.1rem] top-8 w-[2px] h-6 ${step.status === 'SUCCESS' ? 'bg-green-200' : 'bg-gray-100'}`}/>
                                             )}
-
                                             <div
                                                 className="grid grid-cols-12 items-center gap-3 p-2 rounded-lg transition-colors hover:bg-gray-50">
-
-                                                {/* Colonne 1 : Icône (Centrée) */}
                                                 <div className="col-span-2 flex justify-center">
                                                     <StepIcon status={step.status}/>
                                                 </div>
-
-                                                {/* Colonne 2 : Label et Statut */}
                                                 <div className="col-span-10 flex flex-col">
-                                                    <span className={`text-sm font-medium ${
-                                                        step.status === 'RUNNING' ? 'text-blue-700' :
-                                                            step.status === 'FAILED' ? 'text-red-700' : 'text-gray-700'
-                                                    }`}>
+                                                    <span
+                                                        className={`text-sm font-medium ${step.status === 'RUNNING' ? 'text-blue-700' : step.status === 'FAILED' ? 'text-red-700' : 'text-gray-700'}`}>
                                                         {step.label}
                                                     </span>
                                                     <span className="text-xs text-gray-400 font-mono">
@@ -150,7 +165,7 @@ export default function PipelineDetail() {
                             </CardContent>
                         </Card>
 
-                        {/* COLONNE DROITE : Logs */}
+                        {/* Logs */}
                         <Card className="lg:col-span-2 flex flex-col h-[600px]">
                             <CardHeader className="border-b bg-gray-50/50 py-3">
                                 <div className="flex items-center gap-2">
@@ -181,8 +196,7 @@ export default function PipelineDetail() {
     );
 }
 
-// --- SOUS-COMPOSANTS ---
-
+// Sous-composants inchangés
 function StepIcon({status}) {
     switch (status) {
         case "SUCCESS":
@@ -203,10 +217,8 @@ function GlobalStatusBadge({status}) {
         RUNNING: {color: "bg-blue-100 text-blue-800", icon: Loader2, text: "En cours...", spin: true},
         PENDING: {color: "bg-gray-100 text-gray-800", icon: Clock, text: "En attente"},
     };
-
     const current = config[status] || config.PENDING;
     const Icon = current.icon;
-
     return (
         <Badge className={`${current.color} px-3 py-1 flex items-center gap-2 text-sm border-0`}>
             <Icon className={`w-4 h-4 ${current.spin ? 'animate-spin' : ''}`}/>
