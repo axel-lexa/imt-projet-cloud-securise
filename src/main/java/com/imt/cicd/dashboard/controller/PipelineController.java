@@ -9,9 +9,12 @@ import org.springframework.web.bind.annotation.*;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.List;
+
 
 @RestController
 @RequestMapping("/api/pipelines")
+@CrossOrigin(origins = "http://localhost:5173")
 public class PipelineController {
 
     @Autowired
@@ -66,5 +69,11 @@ public class PipelineController {
                 e.printStackTrace();
             }
         }
+    }
+
+    @GetMapping
+    public List<PipelineExecution> getAllPipelines() {
+        // Retourne la liste triée du plus récent au plus ancien
+        return repository.findAllByOrderByStartTimeDesc();
     }
 }
