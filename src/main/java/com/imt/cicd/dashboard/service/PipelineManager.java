@@ -118,7 +118,6 @@ package com.imt.cicd.dashboard.service;
 import com.imt.cicd.dashboard.model.PipelineExecution;
 import com.imt.cicd.dashboard.model.PipelineStatus;
 import com.imt.cicd.dashboard.repository.PipelineRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.FileSystemUtils;
@@ -127,13 +126,21 @@ import java.io.File;
 import java.time.LocalDateTime;
 
 @Service
-@RequiredArgsConstructor
 public class PipelineManager {
 
     private final GitService gitService;
     private final CommandService commandService;
     private final SshService sshService;
     private final PipelineRepository repository;
+
+    // Constructeur avec injection de dépendances
+    public PipelineManager(GitService gitService, CommandService commandService, 
+                          SshService sshService, PipelineRepository repository) {
+        this.gitService = gitService;
+        this.commandService = commandService;
+        this.sshService = sshService;
+        this.repository = repository;
+    }
 
     @Async
     public void runPipeline(Long executionId) {

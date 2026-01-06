@@ -17,7 +17,12 @@ export default function Sidebar() {
         <aside className="w-64 border-r bg-card flex flex-col h-screen sticky top-0">
             <div className="p-6">
                 <h2 className="text-lg font-bold tracking-tight flex items-center gap-2">
-                    <div className="w-6 h-6 bg-primary rounded-md shadow-sm" />
+                    <img
+                        src="/bzh-flag.svg"
+                        alt="Gwenn ha Du"
+                        className="w-6 h-6 rounded-sm shadow-sm"
+                        loading="lazy"
+                    />
                     CI/CD Cloud
                 </h2>
             </div>
