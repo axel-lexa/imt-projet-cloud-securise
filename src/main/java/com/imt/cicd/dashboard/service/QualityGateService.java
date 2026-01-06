@@ -1,5 +1,6 @@
 package com.imt.cicd.dashboard.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -13,7 +14,10 @@ import java.util.Map;
 @Service
 public class QualityGateService {
 
-    private final String SONAR_API = "http://localhost:9000/api/qualitygates/project_status?projectKey=";
+    @Value("${sonar.url:http://localhost:9000}")
+    private String sonarUrl;
+
+    private final String SONAR_API_PATH = "/api/qualitygates/project_status?projectKey=";
 
     // Identifiants SonarQube (à externaliser idéalement)
     private final String USERNAME = "admin";
@@ -34,7 +38,7 @@ public class QualityGateService {
         try {
             // Appel API avec authentification
             ResponseEntity<Map> response = restTemplate.exchange(
-                    SONAR_API + projectKey,
+                    sonarUrl + SONAR_API_PATH + projectKey,
                     HttpMethod.GET, 
                     entity, 
                     Map.class

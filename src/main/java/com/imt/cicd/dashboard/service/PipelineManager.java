@@ -4,6 +4,7 @@ import com.imt.cicd.dashboard.model.PipelineExecution;
 import com.imt.cicd.dashboard.model.PipelineStatus;
 import com.imt.cicd.dashboard.repository.PipelineRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,9 @@ public class PipelineManager {
     private final PipelineRepository repository;
     private final QualityGateService qualityGateService;
     private final SimpMessagingTemplate messagingTemplate; // Injection du WebSocket
+
+    @Value("${sonar.url:http://localhost:9000}")
+    private String sonarUrl;
 
     // Méthode utilitaire pour Sauvegarder ET Notifier le Frontend
     private void saveAndNotify(PipelineExecution execution) {
@@ -66,7 +70,7 @@ public class PipelineManager {
             // Commande SonarQube en mode SILENCIEUX (quiet = true)
             String sonarCmd = "./mvnw org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar " +
                     "-Dsonar.projectKey=" + projectKey + " " +
-                    "-Dsonar.host.url=http://localhost:9000 " +
+                    "-Dsonar.host.url=" + sonarUrl + " " +
                     "-Dsonar.login=admin " +
                     "-Dsonar.password=admin123 " +
                     "-Dorg.slf4j.simpleLogger.defaultLogLevel=warn";

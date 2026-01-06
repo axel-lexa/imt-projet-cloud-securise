@@ -3,6 +3,7 @@ package com.imt.cicd.dashboard.config;
 import com.imt.cicd.dashboard.model.User;
 import com.imt.cicd.dashboard.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -30,18 +31,22 @@ public class SecurityConfig {
     @Autowired
     private UserRepository userRepository;
 
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .cors(org.springframework.security.config.Customizer.withDefaults())
-                // Désactive la protection CSRF pour faciliter les tests via Postman/Curl
                 .cors(Customizer.withDefaults())
+                // Désactive la protection CSRF pour faciliter les tests via Postman/Curl
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/pipelines/webhook", "/api/pipelines/run").permitAll() // Autoriser /run sans auth pour test
+                        .requestMatchers("/", "/index.html", "/assets/**", "/*.js", "/*.css", "/*.ico", "/*.png", "/*.svg", "/login").permitAll() // Ressources statiques
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
+                        .loginPage("/login") // Utiliser notre page de login React
                         .userInfoEndpoint(userInfo -> userInfo
                                 .userAuthoritiesMapper(userAuthoritiesMapper())
                         )
@@ -53,7 +58,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000"));
+        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000", "http://localhost:8081"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
@@ -84,8 +89,8 @@ public class SecurityConfig {
                 userRepository.save(user);
             }
 
-            // Redirection vers le front (Vite default port is 5173)
-            response.sendRedirect("http://localhost:5173");
+            // Redirection vers le front
+            response.sendRedirect(frontendUrl);
         };
     }
 
