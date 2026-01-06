@@ -2,7 +2,8 @@ import React, {useState, useEffect} from "react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import PipelineCard from "../components/PipelineCard";
-import ActivityChart from "../components/ActivityChart"; // Assurez-vous de l'import par défaut
+import ActivityChart from "../components/ActivityChart";
+import SuccessRateChart from "../components/SuccessRateChart";
 import {Play, CheckCircle2, AlertCircle} from "lucide-react";
 import {Card, CardContent} from "@/components/ui/card";
 import {getPipelines} from "../api/cicdApi";
@@ -54,6 +55,7 @@ export default function Dashboard() {
 
     const successCount = pipelines.filter(p => p.status === "SUCCESS").length;
     const failedCount = pipelines.filter(p => p.status === "FAILED").length;
+    const total = pipelines.length;
 
     return (
         <div className="flex min-h-screen bg-gray-50/50">
@@ -63,7 +65,7 @@ export default function Dashboard() {
                 <main className="p-6 space-y-6">
                     {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <StatCard title="Total Lancés" value={pipelines.length}
+                        <StatCard title="Total Lancés" value={total}
                                   icon={<Play className="text-blue-500"/>}/>
                         <StatCard title="Succès" value={successCount}
                                   icon={<CheckCircle2 className="text-green-500"/>}/>
@@ -71,18 +73,21 @@ export default function Dashboard() {
                     </div>
 
                     {/* Graphique avec les VRAIES données */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                         <div className="lg:col-span-2">
                             <ActivityChart data={chartData}/>
                         </div>
+                        <div className="lg:col-span-2">
+                            <SuccessRateChart data={chartData}/>
+                        </div>
 
-                        <Card className="p-6">
+                        {/*<Card className="p-6">
                             <h3 className="font-bold mb-2">Santé du Système</h3>
                             <p className="text-sm text-muted-foreground">Backend opérationnel.</p>
                             <div className="mt-4 h-2 w-full bg-green-100 rounded-full overflow-hidden">
                                 <div className="h-full bg-green-500 w-full"/>
                             </div>
-                        </Card>
+                        </Card>*/}
                     </div>
 
                     {/* Liste des Pipelines */}
