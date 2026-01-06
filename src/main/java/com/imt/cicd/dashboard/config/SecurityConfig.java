@@ -5,6 +5,7 @@ import com.imt.cicd.dashboard.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
@@ -12,8 +13,13 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -24,54 +30,63 @@ public class SecurityConfig {
     @Autowired
     private UserRepository userRepository;
 
-//    @Bean
-//    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-//        http
-//                .csrf(csrf -> csrf.disable())
-//                .authorizeHttpRequests(auth -> auth
-//                        .requestMatchers("/api/pipelines/webhook").permitAll()
-//                        .anyRequest().authenticated()
-//                )
-//                .oauth2Login(oauth -> oauth
-//                        .successHandler(successHandler()) // <--- AJOUT
-//                );
-//        return http.build();
-//    }
-
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+                .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/pipelines/webhook").permitAll()
+                        .requestMatchers("/api/pipelines/webhook", "/api/pipelines/run").permitAll() // Autoriser /run sans auth pour test
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth -> oauth
-                        .successHandler(successHandler()) // <--- AJOUT
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userAuthoritiesMapper(userAuthoritiesMapper())
+                        )
+                        .successHandler(successHandler())
                 );
         return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
     @Bean
     public AuthenticationSuccessHandler successHandler() {
         return (request, response, authentication) -> {
             OAuth2User oauthUser = (OAuth2User) authentication.getPrincipal();
-            String email = oauthUser.getAttribute("email");
-            String name = oauthUser.getAttribute("login"); // "login" pour GitHub
+            Map<String, Object> attributes = oauthUser.getAttributes();
 
-            // Sauvegarde ou mise à jour de l'utilisateur
-            if (email != null) {
-                User user = userRepository.findByEmail(email).orElse(new User());
-                user.setEmail(email);
-                user.setName(name);
+            // GitHub 'login' is the username. 'email' might be null if private.
+            String login = (String) attributes.get("login");
+            String email = (String) attributes.get("email");
+
+            // Use login as the identifier to match userAuthoritiesMapper logic
+            // Fallback to email if login is somehow null
+            String identifier = (login != null) ? login : email;
+
+            if (identifier != null) {
+                User user = userRepository.findByEmail(identifier).orElse(new User());
+                user.setEmail(identifier); // Storing identifier (login) in email field
+                user.setName(login != null ? login : "Unknown");
                 if (user.getRole() == null) user.setRole("DEV"); // Rôle par défaut
                 userRepository.save(user);
             }
 
-            // Redirection vers le front
-            response.sendRedirect("http://localhost:3000");
+            // Redirection vers le front (Vite default port is 5173)
+            response.sendRedirect("http://localhost:5173");
         };
     }
+
     private GrantedAuthoritiesMapper userAuthoritiesMapper() {
         return (authorities) -> {
             Set<SimpleGrantedAuthority> mappedAuthorities = new HashSet<>();
