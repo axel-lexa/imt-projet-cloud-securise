@@ -28,21 +28,47 @@ public class SshService {
         jsch.addIdentity(privateKeyPath);
 
         Session session = jsch.getSession(user, host, 22);
-        session.setConfig("StrictHostKeyChecking", "no");   // Attention en prod, mais OK pour TP
+        session.setConfig("StrictHostKeyChecking", "no");
         session.connect();
 
         ChannelExec channel = (ChannelExec) session.openChannel("exec");
         channel.setCommand(command);
 
-        // Récupération des logs distants
         InputStream in = channel.getInputStream();
+        InputStream err = channel.getErrStream(); // Important pour voir les erreurs Docker !
+
         channel.connect();
 
-        // Lire le flux 'in' et l'ajouter aux logs de 'execution' (similaire à CommandService)
-        // ... implémentation lecture flux ...
+        // Lecture des logs en boucle tant que la commande tourne
+        byte[] tmp = new byte[1024];
+        while (true) {
+            while (in.available() > 0) {
+                int i = in.read(tmp, 0, 1024);
+                if (i < 0) break;
+                execution.appendLog(new String(tmp, 0, i));
+            }
+            while (err.available() > 0) {
+                int i = err.read(tmp, 0, 1024);
+                if (i < 0) break;
+                execution.appendLog("ERREUR: " + new String(tmp, 0, i));
+            }
+            if (channel.isClosed()) {
+                if (in.available() > 0) continue;
+                break;
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (Exception ee) {
+            }
+        }
 
+        int exitCode = channel.getExitStatus();
         channel.disconnect();
         session.disconnect();
+
+        if (exitCode != 0) {
+            throw new RuntimeException("La commande SSH a échoué avec le code : " + exitCode);
+        }
     }
 
     // Méthode pour transférer le docker-compose.yml via SFTP (ChannelSftp)

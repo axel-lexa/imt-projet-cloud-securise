@@ -2,48 +2,76 @@ package com.imt.cicd.dashboard.config;
 
 import com.imt.cicd.dashboard.model.User;
 import com.imt.cicd.dashboard.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
 import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.Optional;
+import java.util.Set;
 
 @Configuration
-@EnableWebSecurity
 public class SecurityConfig {
 
-    private final UserRepository userRepository;
+    @Autowired
+    private UserRepository userRepository;
 
-    public SecurityConfig(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
+//    @Bean
+//    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+//        http
+//                .csrf(csrf -> csrf.disable())
+//                .authorizeHttpRequests(auth -> auth
+//                        .requestMatchers("/api/pipelines/webhook").permitAll()
+//                        .anyRequest().authenticated()
+//                )
+//                .oauth2Login(oauth -> oauth
+//                        .successHandler(successHandler()) // <--- AJOUT
+//                );
+//        return http.build();
+//    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/login", "/css/**", "/js/**", "/error").permitAll()
-                        // Seul le rôle ADMIN en base de données peut déployer
-                        .requestMatchers("/api/deploy/**").hasRole("ADMIN")
+                        .requestMatchers("/api/pipelines/webhook").permitAll()
                         .anyRequest().authenticated()
                 )
-                .oauth2Login(oauth2 -> oauth2
-                        .userInfoEndpoint(userInfo -> userInfo
-                                .userAuthoritiesMapper(userAuthoritiesMapper())
-                        )
+                .oauth2Login(oauth -> oauth
+                        .successHandler(successHandler()) // <--- AJOUT
                 );
         return http.build();
     }
 
+    @Bean
+    public AuthenticationSuccessHandler successHandler() {
+        return (request, response, authentication) -> {
+            OAuth2User oauthUser = (OAuth2User) authentication.getPrincipal();
+            String email = oauthUser.getAttribute("email");
+            String name = oauthUser.getAttribute("login"); // "login" pour GitHub
+
+            // Sauvegarde ou mise à jour de l'utilisateur
+            if (email != null) {
+                User user = userRepository.findByEmail(email).orElse(new User());
+                user.setEmail(email);
+                user.setName(name);
+                if (user.getRole() == null) user.setRole("DEV"); // Rôle par défaut
+                userRepository.save(user);
+            }
+
+            // Redirection vers le front
+            response.sendRedirect("http://localhost:3000");
+        };
+    }
     private GrantedAuthoritiesMapper userAuthoritiesMapper() {
         return (authorities) -> {
             Set<SimpleGrantedAuthority> mappedAuthorities = new HashSet<>();
