@@ -1,0 +1,39 @@
+version: '3.8'
+services:
+  # Base de données pour votre Dashboard CI/CD
+  postgres:
+    image: postgres:15
+    container_name: cicd-db
+    environment:
+      POSTGRES_DB: cicd_dashboard
+      POSTGRES_USER: cicd_admin
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - cicd-network
+
+  # SonarQube pour l'analyse de qualité
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: cicd-sonar
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonar_data:/opt/sonarqube/data
+      - sonar_extensions:/opt/sonarqube/extensions
+    networks:
+      - cicd-network
+
+volumes:
+  pg_data:
+  sonar_data:
+  sonar_extensions:
+
+networks:
+  cicd-network:
+    driver: bridge
