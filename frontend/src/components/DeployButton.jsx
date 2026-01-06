@@ -1,5 +1,7 @@
+// src/components/DeployButton.jsx
 import React, { useState } from "react";
-import { Button, CircularProgress } from "@mui/material";
+import { Button } from "@/components/ui/button";
+import { Loader2, Rocket } from "lucide-react";
 import { triggerPipeline } from "../api/cicdApi";
 
 export default function DeployButton() {
@@ -8,17 +10,44 @@ export default function DeployButton() {
 
     const handleDeploy = async () => {
         setLoading(true);
-        const res = await triggerPipeline();
-        setMessage(res.message);
-        setLoading(false);
+        try {
+            const res = await triggerPipeline();
+            setMessage(res.message);
+            // On efface le message après 3 secondes
+            setTimeout(() => setMessage(""), 3000);
+        } catch (error) {
+            setMessage("Erreur lors du déploiement");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
-        <div style={{ marginBottom: "20px" }}>
-            <Button variant="contained" color="primary" size="large" onClick={handleDeploy} disabled={loading}>
-                {loading ? <CircularProgress size={24} color="inherit"/> : "DÉPLOYER"}
+        <div className="flex flex-col items-end gap-2">
+            <Button
+                onClick={handleDeploy}
+                disabled={loading}
+                size="lg"
+                className="font-bold shadow-sm"
+            >
+                {loading ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        DÉPLOIEMENT...
+                    </>
+                ) : (
+                    <>
+                        <Rocket className="mr-2 h-4 w-4" />
+                        DÉPLOYER
+                    </>
+                )}
             </Button>
-            {message && <p>{message}</p>}
+
+            {message && (
+                <p className="text-xs font-medium text-green-600 animate-in fade-in slide-in-from-top-1">
+                    {message}
+                </p>
+            )}
         </div>
     );
 }
