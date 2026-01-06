@@ -152,7 +152,7 @@ public class PipelineManager {
             // 2. MAVEN BUILD
             execution.appendLog("--- ÉTAPE 2: BUILD & TEST MAVEN ---");
             commandService.executeCommand("chmod +x mvnw", tempDir, execution);
-            commandService.executeCommand("./mvnw clean package -DskipTests", tempDir, execution);
+            commandService.executeCommand("./mvnw clean package ", tempDir, execution);
 
             // 3. DOCKER BUILD
             execution.appendLog("--- ÉTAPE 3: BUILD DOCKER ---");
@@ -201,8 +201,40 @@ public class PipelineManager {
 
         } catch (Exception e) {
             execution.setStatus(PipelineStatus.FAILED);
-            execution.appendLog("Erreur critique : " + e.getMessage());
-            e.printStackTrace();
+            execution.appendLog("ERREUR CRITIQUE: " + e.getMessage());
+
+            // --- LOGIQUE ROLLBACK ---
+            execution.appendLog("--- TENTATIVE DE ROLLBACK ---");
+
+            // 1. Chercher la dernière version stable pour ce repo
+            var lastSuccessOpt = repository.findFirstByRepoUrlAndStatusOrderByStartTimeDesc(
+                    execution.getRepoUrl(),
+                    PipelineStatus.SUCCESS
+            );
+
+            if (lastSuccessOpt.isPresent()) {
+                PipelineExecution lastSuccess = lastSuccessOpt.get();
+                // On suppose que l'image est taguée avec l'ID de l'exécution (ex: mon-app:12)
+                String previousImageTag = "mon-app-metier:" + lastSuccess.getId();
+
+                execution.appendLog("Version précédente trouvée : " + previousImageTag);
+
+                try {
+                    // 2. Commande SSH pour relancer l'ancien conteneur
+                    // Note: Adaptez selon votre docker-compose ou votre commande docker run habituelle
+                    String rollbackCmd =
+                            "docker stop app-metier || true && " +
+                                    "docker rm app-metier || true && " +
+                                    "docker run -d -p 8080:8080 --name app-metier " + previousImageTag;
+
+                    sshService.executeRemoteCommand(rollbackCmd, execution);
+                    execution.appendLog("Rollback effectué avec succès vers l'ID " + lastSuccess.getId());
+                } catch (Exception rollbackEx) {
+                    execution.appendLog("Echec du rollback : " + rollbackEx.getMessage());
+                }
+            } else {
+                execution.appendLog("Aucune version précédente stable trouvée. Impossible de rollback.");
+            }
         } finally {
             execution.setEndTime(LocalDateTime.now());
             repository.save(execution);
