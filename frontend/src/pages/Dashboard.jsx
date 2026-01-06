@@ -1,67 +1,98 @@
-import React, { useState, useEffect } from "react";
+import React, {useState, useEffect} from "react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import PipelineCard from "../components/PipelineCard";
-import { ActivityChart } from "../components/ActivityChart"; // Vérifie bien le chemin
-import { Play, CheckCircle2, AlertCircle } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-
-const mockPipelines = [
-    { id: 1, name: "Pipeline A", trigger: "Manual", status: "SUCCESS" },
-    { id: 2, name: "Pipeline B", trigger: "GitHub Push", status: "RUNNING" },
-    { id: 3, name: "Pipeline C", trigger: "Manual", status: "FAILED" },
-];
+import ActivityChart from "../components/ActivityChart"; // Assurez-vous de l'import par défaut
+import {Play, CheckCircle2, AlertCircle} from "lucide-react";
+import {Card, CardContent} from "@/components/ui/card";
+import {getPipelines} from "../api/cicdApi";
 
 export default function Dashboard() {
-    const [pipelines, setPipelines] = useState(mockPipelines);
+    const [pipelines, setPipelines] = useState([]);
+    const [chartData, setChartData] = useState([]);
+
+    // Fonction pour transformer la liste brute en données pour le graphique
+    const processChartData = (data) => {
+        const stats = {};
+
+        data.forEach(p => {
+            if (!p.startTime) return;
+            // On extrait la date (YYYY-MM-DD)
+            const date = new Date(p.startTime).toISOString().split('T')[0];
+
+            if (!stats[date]) {
+                stats[date] = {date, success: 0, failed: 0};
+            }
+
+            if (p.status === 'SUCCESS') stats[date].success += 1;
+            if (p.status === 'FAILED') stats[date].failed += 1;
+        });
+
+        // On transforme l'objet en tableau trié par date et on prend les 7 derniers jours
+        return Object.values(stats)
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .slice(-7);
+    };
+
+    const loadData = async () => {
+        try {
+            const data = await getPipelines();
+            if (Array.isArray(data)) {
+                setPipelines(data);
+                setChartData(processChartData(data));
+            }
+        } catch (error) {
+            console.error("Erreur dashboard:", error);
+        }
+    };
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            setPipelines((prev) =>
-                prev.map((p) =>
-                    p.status === "RUNNING"
-                        ? { ...p, status: Math.random() > 0.5 ? "SUCCESS" : "FAILED" }
-                        : p
-                )
-            );
-        }, 5000);
+        loadData();
+        const interval = setInterval(loadData, 3000);
         return () => clearInterval(interval);
     }, []);
 
-    // Calcul dynamique pour les StatCards
     const successCount = pipelines.filter(p => p.status === "SUCCESS").length;
     const failedCount = pipelines.filter(p => p.status === "FAILED").length;
 
     return (
         <div className="flex min-h-screen bg-gray-50/50">
-            <Sidebar />
+            <Sidebar/>
             <div className="flex-1">
-                <Topbar title="Aperçu des Pipelines" />
+                <Topbar title="Aperçu des Pipelines"/>
                 <main className="p-6 space-y-6">
-
-                    {/* 1. Stats */}
+                    {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <StatCard title="Total" value={pipelines.length} icon={<Play className="text-blue-500" />} />
-                        <StatCard title="Succès" value={successCount} icon={<CheckCircle2 className="text-green-500" />} />
-                        <StatCard title="Échecs" value={failedCount} icon={<AlertCircle className="text-red-500" />} />
+                        <StatCard title="Total Lancés" value={pipelines.length}
+                                  icon={<Play className="text-blue-500"/>}/>
+                        <StatCard title="Succès" value={successCount}
+                                  icon={<CheckCircle2 className="text-green-500"/>}/>
+                        <StatCard title="Échecs" value={failedCount} icon={<AlertCircle className="text-red-500"/>}/>
                     </div>
 
-                    {/* 2. Le Graphique (C'était cette partie qui manquait !) */}
+                    {/* Graphique avec les VRAIES données */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <ActivityChart />
+                        <div className="lg:col-span-2">
+                            <ActivityChart data={chartData}/>
+                        </div>
+
                         <Card className="p-6">
                             <h3 className="font-bold mb-2">Santé du Système</h3>
-                            <p className="text-sm text-muted-foreground">Tous les services sont opérationnels.</p>
+                            <p className="text-sm text-muted-foreground">Backend opérationnel.</p>
                             <div className="mt-4 h-2 w-full bg-green-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-green-500 w-[98%]" />
+                                <div className="h-full bg-green-500 w-full"/>
                             </div>
                         </Card>
                     </div>
 
-                    {/* 3. Liste */}
-                    <h2 className="text-xl font-semibold tracking-tight">Pipelines Récents</h2>
+                    {/* Liste des Pipelines */}
+                    <h2 className="text-xl font-semibold tracking-tight">Historique Récent</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {pipelines.map(p => <PipelineCard key={p.id} pipeline={p} />)}
+                        {pipelines.length === 0 ? (
+                            <p className="text-gray-500 col-span-3 text-center py-10">Aucun pipeline.</p>
+                        ) : (
+                            pipelines.map(p => <PipelineCard key={p.id} pipeline={p}/>)
+                        )}
                     </div>
                 </main>
             </div>
@@ -69,7 +100,7 @@ export default function Dashboard() {
     );
 }
 
-function StatCard({ title, value, icon }) {
+function StatCard({title, value, icon}) {
     return (
         <Card>
             <CardContent className="flex items-center justify-between p-6">
