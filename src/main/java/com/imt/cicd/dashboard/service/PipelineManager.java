@@ -94,8 +94,7 @@ public class PipelineManager {
             // Correction Rollback: on sauvegarde les deux tags dans le tar
             commandService.executeCommand("docker save -o app.tar " + imageNameId + " " + imageNameLatest, tempDir, execution);
 
-            // 4. TRANSFERT SSH (DÉSACTIVÉ TEMPORAIREMENT POUR TESTS CI)
-            /*
+            // 4. TRANSFERT SSH
             execution.appendLog("--- TRANSFERT VERS LA VM ---");
             saveAndNotify(execution);
 
@@ -129,10 +128,6 @@ public class PipelineManager {
                             "docker compose -f " + remoteHome + "/docker-compose.yml up -d";
 
             sshService.executeRemoteCommand(deployCmd, execution);
-            */
-            execution.appendLog("⚠️ DÉPLOIEMENT SSH DÉSACTIVÉ (Mode Test CI uniquement)");
-
-            execution.setStatus(PipelineStatus.SUCCESS);
 
         } catch (Exception e) {
             execution.setStatus(PipelineStatus.FAILED);

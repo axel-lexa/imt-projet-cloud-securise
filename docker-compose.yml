@@ -1,6 +1,32 @@
 version: '3.8'
 services:
-  # Base de données pour votre Dashboard CI/CD
+  # Application Unifiée (Front + Back)
+  cicd-app:
+    build: .
+    container_name: cicd-app
+    ports:
+      - "8081:8081" # Le backend sert aussi le front sur ce port
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/cicd_dashboard
+      - SPRING_DATASOURCE_USERNAME=cicd_admin
+      - SPRING_DATASOURCE_PASSWORD=password123
+      # Configuration GitHub
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      # Clé SSH
+      - VM_PRIVATE_KEY_PATH=/root/.ssh/id_rsa
+      # URL SonarQube interne
+      - SONAR_URL=http://sonarqube:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${VM_PRIVATE_KEY_PATH}:/root/.ssh/id_rsa
+    depends_on:
+      - postgres
+      - sonarqube
+    networks:
+      - cicd-network
+
+  # Base de données
   postgres:
     image: postgres:15
     container_name: cicd-db
@@ -15,7 +41,7 @@ services:
     networks:
       - cicd-network
 
-  # SonarQube pour l'analyse de qualité
+  # SonarQube
   sonarqube:
     image: sonarqube:lts-community
     container_name: cicd-sonar

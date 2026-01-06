@@ -14,14 +14,14 @@ import java.util.Map;
 public class QualityGateService {
 
     private final String SONAR_API = "http://localhost:9000/api/qualitygates/project_status?projectKey=";
-    
+
     // Identifiants SonarQube (à externaliser idéalement)
     private final String USERNAME = "admin";
     private final String PASSWORD = "admin123"; // Mettez "admin" si vous n'avez pas changé le mdp
 
     public void verifyQuality(String projectKey) {
         RestTemplate restTemplate = new RestTemplate();
-        
+
         // Création du header d'authentification Basic Auth
         String auth = USERNAME + ":" + PASSWORD;
         byte[] encodedAuth = Base64.getEncoder().encode(auth.getBytes());
@@ -34,7 +34,7 @@ public class QualityGateService {
         try {
             // Appel API avec authentification
             ResponseEntity<Map> response = restTemplate.exchange(
-                    SONAR_API + projectKey, 
+                    SONAR_API + projectKey,
                     HttpMethod.GET, 
                     entity, 
                     Map.class
@@ -51,7 +51,7 @@ public class QualityGateService {
             if ("ERROR".equals(status)) {
                 throw new RuntimeException("⛔ ROLLBACK : Quality Gate échoué ! Code trop sale.");
             }
-            System.out.println("✅ Quality Gate validé.");
+            System.out.println("✅ Quality Gate validé par Sonarcube.");
         } catch (Exception e) {
             throw new RuntimeException("Erreur SonarQube : " + e.getMessage());
         }
