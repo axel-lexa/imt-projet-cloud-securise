@@ -33,5 +33,8 @@ build/
 .vscode/
 .env
 
+temp-workspace/
+
+
 ### Mac ###
 .DS_Store

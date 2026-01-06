@@ -1,63 +1,95 @@
-// src/components/PipelineCard.jsx
 import React from "react";
-import { useNavigate } from "react-router-dom"; // Import nécessaire pour le clic
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { PlayCircle, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
+import {CheckCircle2, XCircle, Clock, Loader2, GitBranch} from "lucide-react";
+import {Link} from "react-router-dom";
 
-export default function PipelineCard({ pipeline }) {
-    const navigate = useNavigate();
+export default function PipelineCard({pipeline}) {
+    // Calcul de la durée
+    const getDuration = () => {
+        if (!pipeline.startTime) return "-";
 
-    // Configuration des styles selon le statut
-    const statusConfig = {
-        SUCCESS: { color: "bg-green-500/10 text-green-600 border-green-200", icon: <CheckCircle2 className="w-4 h-4" /> },
-        RUNNING: { color: "bg-blue-500/10 text-blue-600 border-blue-200", icon: <Loader2 className="w-4 h-4 animate-spin" /> },
-        FAILED: { color: "bg-red-500/10 text-red-600 border-red-200", icon: <XCircle className="w-4 h-4" /> },
-        PENDING: { color: "bg-gray-500/10 text-gray-600 border-gray-200", icon: <PlayCircle className="w-4 h-4" /> },
+        const start = new Date(pipeline.startTime);
+        // Si pas de endTime, on prend l'heure actuelle (pour afficher le temps écoulé en direct)
+        const end = pipeline.endTime ? new Date(pipeline.endTime) : new Date();
+
+        const diffMs = end - start;
+        const seconds = Math.floor(diffMs / 1000);
+
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}m ${remainingSeconds}s`;
     };
 
-    const config = statusConfig[pipeline.status] || statusConfig.PENDING;
+    // Configuration visuelle selon le statut
+    const getStatusConfig = (status) => {
+        switch (status) {
+            case "SUCCESS":
+                return {
+                    icon: <CheckCircle2 className="w-5 h-5 text-green-500"/>,
+                    bg: "bg-green-50 border-green-200",
+                    text: "text-green-700",
+                    label: "Succès"
+                };
+            case "FAILED":
+                return {
+                    icon: <XCircle className="w-5 h-5 text-red-500"/>,
+                    bg: "bg-red-50 border-red-200",
+                    text: "text-red-700",
+                    label: "Échec"
+                };
+            case "RUNNING":
+                return {
+                    // Animation de rotation (spin) native de Lucide
+                    icon: <Loader2 className="w-5 h-5 text-blue-500 animate-spin"/>,
+                    bg: "bg-blue-50 border-blue-200",
+                    text: "text-blue-700",
+                    label: "En cours"
+                };
+            default: // PENDING
+                return {
+                    icon: <Clock className="w-5 h-5 text-gray-500"/>,
+                    bg: "bg-gray-50 border-gray-200",
+                    text: "text-gray-700",
+                    label: "En attente"
+                };
+        }
+    };
+
+    const config = getStatusConfig(pipeline.status);
 
     return (
-        <Card
-            className="rounded-xl border bg-card text-card-foreground shadow hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => navigate(`/pipeline/${pipeline.id}`)}
-        >
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <CardTitle className="text-sm font-semibold">{pipeline.name}</CardTitle>
-                {config.icon}
-            </CardHeader>
-            <CardContent>
-                <div className="text-xs text-muted-foreground mb-3 font-mono">
-                    ID: {pipeline.id} • {pipeline.trigger}
-                </div>
+        <Link to={`/pipeline/${pipeline.id}`} className="block transition-transform hover:scale-[1.02]">
+            <Card className={`border shadow-sm ${config.bg}`}>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-600">
+                        #{pipeline.id}
+                    </CardTitle>
+                    {config.icon}
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col gap-1">
+                        <div className="text-2xl font-bold flex items-center gap-2">
+                            <span className={config.text}>{config.label}</span>
+                        </div>
 
-                {/* Affichage des mini-étapes (Stages) */}
-                {pipeline.steps && (
-                    <div className="flex gap-1 mb-4">
-                        {pipeline.steps.map((step, i) => (
-                            <div
-                                key={i}
-                                title={step.name}
-                                className={`h-1.5 flex-1 rounded-full ${
-                                    step.status === "SUCCESS" ? "bg-green-500" :
-                                        step.status === "RUNNING" ? "bg-blue-500 animate-pulse" :
-                                            step.status === "FAILED" ? "bg-red-500" : "bg-muted"
-                                }`}
-                            />
-                        ))}
+                        <div className="flex items-center text-xs text-muted-foreground mt-2 gap-4">
+                            <div className="flex items-center gap-1">
+                                <GitBranch className="w-3 h-3"/>
+                                {pipeline.branch || "main"}
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <Clock className="w-3 h-3"/>
+                                {getDuration()}
+                            </div>
+                        </div>
+
+                        <p className="text-xs text-gray-400 mt-1">
+                            {new Date(pipeline.startTime).toLocaleString()}
+                        </p>
                     </div>
-                )}
-
-                <div className="flex items-center justify-between">
-                    <Badge variant="outline" className={`${config.color} font-medium`}>
-                        {pipeline.status}
-                    </Badge>
-
-                    {/* Petit texte indicatif pour l'UX */}
-                    <span className="text-[10px] text-muted-foreground italic">Cliquez pour voir les jobs</span>
-                </div>
-            </CardContent>
-        </Card>
+                </CardContent>
+            </Card>
+        </Link>
     );
 }
