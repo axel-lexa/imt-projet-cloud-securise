@@ -233,15 +233,15 @@ public class PipelineManager {
                     String connectionString = "mongodb://user:pass@db:27017/carrentaldb?authSource=admin";
 
                     String rollbackCmd =
-                            "docker stop IMT-ArchitectureLogicielle-app || true && " + // Stop l'app buggée
-                                    "docker rm IMT-ArchitectureLogicielle-app || true && " +   // Supprime l'app buggée
-                                    "docker compose -f " + remoteHome + "/docker-compose.yml up -d db && " + // Force le démarrage de la BDD seule
+                            "docker stop IMT-ArchitectureLogicielle-app || true && " +
+                                    "docker rm IMT-ArchitectureLogicielle-app || true && " +
+                                    "docker compose -f " + remoteHome + "/docker-compose.yml up -d db && " +
                                     "docker stop app-metier || true && " +
                                     "docker rm app-metier || true && " +
                                     "docker run -d -p 8080:8080 " +
                                     "--name app-metier " +
-                                    "--network theo_default " +  // IMPORTANT: On se branche sur le réseau créé par compose (vu dans vos logs)
-                                    "-e SPRING_DATA_MONGODB_URI='" + connectionString + "' " + // On injecte la config DB
+                                    "--network cicd-network " +
+                                    "-e SPRING_DATA_MONGODB_URI='" + connectionString + "' " +
                                     previousImageTag;
 
                     sshService.executeRemoteCommand(rollbackCmd, execution);
