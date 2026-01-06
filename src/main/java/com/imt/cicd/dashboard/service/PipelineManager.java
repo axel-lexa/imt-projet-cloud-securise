@@ -164,7 +164,7 @@ public class PipelineManager {
 
             // Sauvegarde de l'image en .tar
             execution.appendLog("--- SAUVEGARDE IMAGE ---");
-            commandService.executeCommand("docker save -o app.tar " + imageNameLatest, tempDir, execution);
+            commandService.executeCommand("docker save -o app.tar " + imageNameId + " " + imageNameLatest, tempDir, execution);
 
             // 4. TRANSFERT SSH
             execution.appendLog("--- TRANSFERT VERS LA VM ---");
@@ -192,9 +192,12 @@ public class PipelineManager {
             // La commande charge l'image PUIS lance docker-compose
             // On ajoute '|| true' pour éviter que le script plante si le conteneur n'existait pas
             String deployCmd =
-                    "docker load -i " + remoteHome + "/app.tar && " +
+                    "docker stop app-metier || true && " +       // Arrête le conteneur de secours
+                            "docker rm app-metier || true && " +         // Supprime le conteneur de secours
+                            "docker load -i " + remoteHome + "/app.tar && " +
                             "docker compose -f " + remoteHome + "/docker-compose.yml down || true && " +
                             "docker compose -f " + remoteHome + "/docker-compose.yml up -d";
+
             sshService.executeRemoteCommand(deployCmd, execution);
 
             execution.setStatus(PipelineStatus.SUCCESS);
@@ -214,18 +217,32 @@ public class PipelineManager {
 
             if (lastSuccessOpt.isPresent()) {
                 PipelineExecution lastSuccess = lastSuccessOpt.get();
-                // On suppose que l'image est taguée avec l'ID de l'exécution (ex: mon-app:12)
                 String previousImageTag = "mon-app-metier:" + lastSuccess.getId();
+
+                // On récupère le chemin du home comme fait plus haut
+                String remoteHome = "/home/" + sshService.getUser();
 
                 execution.appendLog("Version précédente trouvée : " + previousImageTag);
 
                 try {
-                    // 2. Commande SSH pour relancer l'ancien conteneur
-                    // Note: Adaptez selon votre docker-compose ou votre commande docker run habituelle
+                    // 1. On éteint l'app 'officielle' qui a planté (IMT-ArchitectureLogicielle-app)
+                    // 2. On démarre/vérifie que la BDD est UP via docker-compose (service 'db')
+                    // 3. On lance l'ancienne image en la connectant au réseau du compose (theo_default)
+                    //    et en configurant l'URI Mongo pour qu'elle pointe vers le service 'db'
+
+                    String connectionString = "mongodb://user:pass@db:27017/carrentaldb?authSource=admin";
+
                     String rollbackCmd =
-                            "docker stop app-metier || true && " +
+                            "docker stop IMT-ArchitectureLogicielle-app || true && " + // Stop l'app buggée
+                                    "docker rm IMT-ArchitectureLogicielle-app || true && " +   // Supprime l'app buggée
+                                    "docker compose -f " + remoteHome + "/docker-compose.yml up -d db && " + // Force le démarrage de la BDD seule
+                                    "docker stop app-metier || true && " +
                                     "docker rm app-metier || true && " +
-                                    "docker run -d -p 8080:8080 --name app-metier " + previousImageTag;
+                                    "docker run -d -p 8080:8080 " +
+                                    "--name app-metier " +
+                                    "--network theo_default " +  // IMPORTANT: On se branche sur le réseau créé par compose (vu dans vos logs)
+                                    "-e SPRING_DATA_MONGODB_URI='" + connectionString + "' " + // On injecte la config DB
+                                    previousImageTag;
 
                     sshService.executeRemoteCommand(rollbackCmd, execution);
                     execution.appendLog("Rollback effectué avec succès vers l'ID " + lastSuccess.getId());
