@@ -21,7 +21,8 @@ const STEPS_DEFINITION = [
     {id: 3, label: "Analyse SonarQube", marker: "--- ÉTAPE 2.5: ANALYSE QUALITÉ ---"},
     {id: 4, label: "Construction Image Docker", marker: "--- ÉTAPE 3"},
     {id: 5, label: "Transfert vers la VM", marker: "--- TRANSFERT"},
-    {id: 6, label: "Déploiement (SSH)", marker: "--- ÉTAPE 4"}
+    {id: 6, label: "Déploiement (SSH)", marker: "--- ÉTAPE 4"},
+    {id: 7, label: "Pentest (OWASP ZAP)", marker: "--- PENTEST"}
 ];
 
 export default function PipelineDetail() {
