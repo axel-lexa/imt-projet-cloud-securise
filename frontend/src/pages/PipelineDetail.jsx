@@ -65,11 +65,10 @@ export default function PipelineDetail() {
     // 2. Connexion WebSocket (Temps réel)
     useEffect(() => {
         const client = new Client({
-            // On utilise SockJS comme fallback (http://localhost:8080/ws défini dans WebSocketConfig.java)
-            webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
+            webSocketFactory: () => new SockJS('http://localhost:8081/ws'),
 
             // Reconnexion automatique
-            reconnectDelay: 5000,
+            reconnectDelay: 2000,
 
             onConnect: () => {
                 console.log("Connecté au WebSocket !");
