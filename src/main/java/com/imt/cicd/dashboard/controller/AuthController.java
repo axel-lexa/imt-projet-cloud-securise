@@ -1,15 +1,22 @@
 package com.imt.cicd.dashboard.controller;
 
+import com.imt.cicd.dashboard.model.User;
+import com.imt.cicd.dashboard.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000", "http://localhost:8081"})
 public class AuthController {
+
+    @Autowired
+    private UserRepository userRepository;
 
     @GetMapping("/me")
     public Map<String, Object> getCurrentUser(Authentication authentication) {
@@ -30,6 +37,14 @@ public class AuthController {
                 userInfo.put("name", name != null ? name : login);
                 userInfo.put("avatarUrl", avatarUrl);
                 userInfo.put("authenticated", true);
+
+                // Récupération du rôle depuis la BDD
+                Optional<User> userOpt = userRepository.findByEmail(login);
+                if (userOpt.isPresent()) {
+                    userInfo.put("role", userOpt.get().getRole());
+                } else {
+                    userInfo.put("role", "USER");
+                }
             }
         } else {
             userInfo.put("authenticated", false);
