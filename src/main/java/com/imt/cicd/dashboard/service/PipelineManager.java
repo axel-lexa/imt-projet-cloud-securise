@@ -133,6 +133,8 @@ public class PipelineManager {
 
             sshService.executeRemoteCommand(deployCmd, execution);
 
+            execution.setStatus(PipelineStatus.SUCCESS);
+
         } catch (Exception e) {
             execution.setStatus(PipelineStatus.FAILED);
             execution.appendLog("ERREUR CRITIQUE: " + e.getMessage());

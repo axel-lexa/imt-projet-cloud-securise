@@ -10,6 +10,9 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/cicd_dashboard
       - SPRING_DATASOURCE_USERNAME=cicd_admin
       - SPRING_DATASOURCE_PASSWORD=password123
+      # Configuration VM
+      - VM_HOST=${VM_HOST}
+      - VM_USER=${VM_USER}
       # Configuration GitHub
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}

@@ -1,21 +1,31 @@
-// src/App.jsx
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Dashboard from "./pages/Dashboard";
-import Users from "./pages/Users";
-import LoginPage from "./pages/LoginPage";
-import PipelineDetail from "./pages/PipelineDetail";
-import History from "./pages/History";
+import React from 'react';
+import {BrowserRouter as Router, Routes, Route, Navigate} from 'react-router-dom';
+import Dashboard from './pages/Dashboard';
+import PipelineDetail from './pages/PipelineDetail';
+import LoginPage from './pages/LoginPage';
+import ProtectedRoute from './components/ProtectedRoute';
+import Users from './pages/Users';
+import History from "@/pages/History";
 
-export default function App() {
+function App() {
     return (
         <Router>
             <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/history" element={<History />} />
-                <Route path="/users" element={<Users />} />
-                <Route path="/pipeline/:id" element={<PipelineDetail />} />
+                {/* Route publique : Login */}
+                <Route path="/login" element={<LoginPage/>}/>
+
+                {/* Routes Protégées : Tout ce qui est ici nécessite d'être loggé */}
+                <Route element={<ProtectedRoute/>}>
+                    <Route path="/" element={<Navigate to="/dashboard" replace/>}/>
+                    <Route path="/dashboard" element={<Dashboard/>}/>
+                    <Route path="/pipeline/:id" element={<PipelineDetail/>}/>
+                    <Route path="/users" element={<Users/>}/>
+                    <Route path="/history" element={<History/>}/>
+                    {/* Autres routes protégées... */}
+                </Route>
             </Routes>
         </Router>
     );
 }
+
+export default App;
