@@ -6,11 +6,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @Controller
 public class SpaController {
 
-    // Modification ici : ajout de "/**/{path:[^\\.]*}" pour gérer les sous-dossiers
-    // Cela capture /dashboard, mais aussi /pipelines/1, /history/details/5, etc.
-    @RequestMapping(value = {"/{path:[^\\.]*}", "/**/{path:[^\\.]*}"})
+    // On liste explicitement les routes React pour éviter de capturer "/ws" ou "/api"
+    // Si vous ajoutez une page React, ajoutez son chemin ici.
+    @RequestMapping(value = {
+            "/",
+            "/login",
+            "/dashboard/**",
+            "/pipeline/**",
+            "/history/**",
+            "/deployments/**",
+            "/users/**"
+    })
     public String redirect() {
-        // On transfère la requête à index.html qui chargera React
         return "forward:/index.html";
     }
 }

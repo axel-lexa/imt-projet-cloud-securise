@@ -65,7 +65,7 @@ export default function PipelineDetail() {
     // 2. Connexion WebSocket (Temps réel)
     useEffect(() => {
         const client = new Client({
-            webSocketFactory: () => new SockJS('http://localhost:8081/ws'),
+            webSocketFactory: () => new SockJS('/ws'),
 
             // Reconnexion automatique
             reconnectDelay: 2000,
