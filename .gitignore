@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+.env
+
+temp-workspace/
+
+
+### Mac ###
+.DS_Store

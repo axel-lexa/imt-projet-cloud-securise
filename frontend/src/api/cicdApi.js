@@ -1,31 +1,58 @@
-import { pipelines, users } from "../mock/mockData";
+import axios from 'axios';
 
-// Simule un call API pour récupérer les pipelines
+// Détection automatique de l'URL de base
+// Si on est en développement (Vite server), on pointe vers 8081
+// Si on est en production (servi par Spring), on utilise l'URL relative
+const API_URL = import.meta.env.DEV 
+    ? 'http://localhost:8081/api/pipelines' 
+    : '/api/pipelines';
+
+// Configuration globale d'Axios pour inclure les cookies (JSESSIONID)
+axios.defaults.withCredentials = true;
+
+// 1. Récupérer les pipelines (GET)
 export const getPipelines = async () => {
-    return new Promise(resolve => {
-        setTimeout(() => resolve(pipelines), 500);
-    });
+    try {
+        const response = await axios.get(API_URL);
+        return response.data; 
+    } catch (error) {
+        console.error("Erreur lors de la récupération des pipelines", error);
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+             // Redirection gérée par le composant ou le routeur idéalement
+             // window.location.href = "/login";
+        }
+        return [];
+    }
 };
 
-// Simule déclenchement d’un pipeline
-export const triggerPipeline = async () => {
-    return new Promise(resolve => {
-        setTimeout(() => resolve({ message: "Pipeline triggered!" }), 500);
-    });
+export const getPipelineById = async (id) => {
+    try {
+        const response = await axios.get(`${API_URL}/${id}`);
+        return response.data;
+    } catch (error) {
+        console.error("Erreur pipeline detail", error);
+        return null;
+    }
 };
 
-// Récupère les utilisateurs
+// 2. Déclencher un pipeline (POST)
+export const triggerPipeline = async (repoUrl) => {
+    try {
+        const response = await axios.post(`${API_URL}/run`, repoUrl, {
+            headers: {'Content-Type': 'text/plain'}
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Erreur lors du déclenchement", error);
+        throw error;
+    }
+};
+
 export const getUsers = async () => {
-    return new Promise(resolve => {
-        setTimeout(() => resolve(users), 500);
-    });
+    return [];
 };
 
-// Met à jour le rôle d’un utilisateur
 export const updateUserRole = async (userId, newRole) => {
-    return new Promise(resolve => {
-        const user = users.find(u => u.id === userId);
-        if(user) user.role = newRole;
-        setTimeout(() => resolve(user), 300);
-    });
+    console.warn("API Utilisateurs non implémentée côté Backend");
+    return null;
 };

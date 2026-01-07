@@ -11,7 +11,7 @@ export function LoginForm({ className, ...props }) {
     const handleGithubLogin = () => {
         // Ici, tu redirigeras vers ton backend qui gère l'OAuth2 GitHub
         console.log("Redirection vers l'authentification GitHub...");
-        window.location.href = "http://localhost:8080/oauth2/authorization/github";
+        window.location.href = "http://localhost:8081/oauth2/authorization/github";
     };
 
     return (
