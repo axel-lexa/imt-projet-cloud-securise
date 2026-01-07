@@ -1,20 +1,35 @@
-// src/pages/LoginPage.jsx
-import React from "react";
-import { GalleryVerticalEnd } from "lucide-react";
-import { LoginForm } from "@/components/LoginForm.jsx";
+import React from 'react';
+import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
+import {Button} from "@/components/ui/button";
+import {Github} from "lucide-react";
 
 export default function LoginPage() {
+
+    const handleLogin = () => {
+        // Redirection explicite vers le backend Spring Boot pour lancer le flux OAuth2
+        // Le port 8080 est celui par défaut de Spring Boot
+        window.location.href = "http://localhost:8081/oauth2/authorization/github";
+    };
+
     return (
-        <div className="bg-muted flex min-h-screen flex-col items-center justify-center gap-6 p-6 md:p-10">
-            <div className="flex w-full max-w-sm flex-col gap-6">
-                <a href="#" className="flex items-center gap-2 self-center font-medium">
-                    <div className="bg-primary text-primary-foreground flex h-6 w-6 items-center justify-center rounded-md">
-                        <GalleryVerticalEnd className="h-4 w-4" />
-                    </div>
-                    CloudSec CI/CD
-                </a>
-                <LoginForm />
-            </div>
+        <div className="flex items-center justify-center min-h-screen bg-gray-100">
+            <Card className="w-[350px]">
+                <CardHeader>
+                    <CardTitle className="text-center">Connexion CI/CD</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-center text-gray-500 mb-6 text-sm">
+                        Connectez-vous pour accéder au dashboard
+                    </p>
+                    <Button
+                        className="w-full gap-2"
+                        onClick={handleLogin}
+                    >
+                        <Github className="w-4 h-4"/>
+                        Se connecter avec GitHub
+                    </Button>
+                </CardContent>
+            </Card>
         </div>
     );
 }

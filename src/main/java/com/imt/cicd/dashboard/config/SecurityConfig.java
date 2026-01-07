@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -26,6 +27,7 @@ import java.util.Optional;
 import java.util.Set;
 
 @Configuration
+@EnableWebSecurity
 public class SecurityConfig {
 
     @Autowired
@@ -35,33 +37,40 @@ public class SecurityConfig {
     private String frontendUrl;
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(Customizer.withDefaults())
-                // Désactive la protection CSRF pour faciliter les tests via Postman/Curl
+                // 1. Activation de CORS pour autoriser le Frontend (port 5173)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // 2. Désactivation CSRF (pour simplifier les appels API, à réactiver en prod idéalement)
                 .csrf(csrf -> csrf.disable())
+                // 3. Configuration des autorisations
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/pipelines/webhook", "/api/pipelines/run").permitAll() // Autoriser /run sans auth pour test
-                        .requestMatchers("/", "/index.html", "/assets/**", "/*.js", "/*.css", "/*.ico", "/*.png", "/*.svg", "/login").permitAll() // Ressources statiques
-                        .anyRequest().authenticated()
+                        .requestMatchers("/", "/login", "/error", "/webjars/**").permitAll() // Pages publiques
+                        .requestMatchers("/api/pipelines/webhook").permitAll() // Webhook GitHub doit être public
+                        .anyRequest().authenticated() // Tout le reste nécessite d'être connecté
                 )
-                .oauth2Login(oauth -> oauth
-                        .loginPage("/login") // Utiliser notre page de login React
-                        .userInfoEndpoint(userInfo -> userInfo
-                                .userAuthoritiesMapper(userAuthoritiesMapper())
-                        )
-                        .successHandler(successHandler())
+                // 4. Configuration OAuth2
+                .oauth2Login(oauth2 -> oauth2
+                        // Après un login réussi via GitHub, on redirige vers le dashboard React
+                        .defaultSuccessUrl("http://localhost:8081/dashboard", true)
+                )
+                // 5. Gestion de la déconnexion
+                .logout(logout -> logout
+                        .logoutSuccessUrl("http://localhost:8081/")
+                        .deleteCookies("JSESSIONID")
                 );
+
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000", "http://localhost:8081"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:8081", "http://localhost:3000")); // URL du Frontend
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(true); // Important pour les cookies de session/OAuth2
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
@@ -114,7 +123,7 @@ public class SecurityConfig {
                     if (userOpt.isPresent()) {
                         String role = userOpt.get().getRole();
                         mappedAuthorities.add(new SimpleGrantedAuthority(role));
-                        System.out.println("✅ Utilisateur trouvé. Rôle : "+ role);
+                        System.out.println("✅ Utilisateur trouvé. Rôle : " + role);
                     } else {
                         // Rôle par défaut si pas en BDD
                         mappedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
