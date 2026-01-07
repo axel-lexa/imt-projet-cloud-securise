@@ -7,7 +7,7 @@ import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
 import {
     CheckCircle2, XCircle, Loader2, Clock,
-    ArrowLeft, Terminal
+    ArrowLeft, Terminal, Check, X
 } from "lucide-react";
 import {getPipelineById} from "../api/cicdApi";
 
@@ -132,35 +132,35 @@ export default function PipelineDetail() {
                             <CardHeader>
                                 <CardTitle>Étapes du Processus</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-0">
-                                <div className="grid grid-cols-12 text-xs font-semibold text-gray-400 mb-4 px-2">
-                                    <div className="col-span-2 text-center">ÉTAT</div>
-                                    <div className="col-span-10">NOM DE L'ÉTAPE</div>
-                                </div>
-                                <div className="space-y-4">
-                                    {steps.map((step, idx) => (
-                                        <div key={step.id} className="relative group">
-                                            {idx !== steps.length - 1 && (
+                            <CardContent className="pt-2">
+                                <div className="relative pl-8 md:pl-10">
+                                    <div className="space-y-5">
+                                        {steps.map((step, idx) => (
+                                            <div key={step.id} className="relative pb-5">
+                                                {/* Connecteur: part sous l'icône et va jusqu'au rond suivant */}
                                                 <div
-                                                    className={`absolute left-[1.1rem] top-8 w-[2px] h-6 ${step.status === 'SUCCESS' ? 'bg-green-200' : 'bg-gray-100'}`}/>
-                                            )}
-                                            <div
-                                                className="grid grid-cols-12 items-center gap-3 p-2 rounded-lg transition-colors hover:bg-gray-50">
-                                                <div className="col-span-2 flex justify-center">
-                                                    <StepIcon status={step.status}/>
+                                                    className={`${idx === steps.length - 1 ? 'hidden' : ''} absolute left-4 md:left-5 -translate-x-1/2 top-8 h-[calc(100%+2rem)] w-px ${step.status === 'SUCCESS' ? 'bg-green-300' : 'bg-gray-200'} z-0`}
+                                                />
+
+                                                {/* Icône */}
+                                                <div className="absolute left-4 md:left-5 -translate-x-1/2 top-1.5 z-10">
+                                                    <div className="w-8 h-8 rounded-full bg-white ring-2 ring-gray-200 flex items-center justify-center">
+                                                        <StepIcon status={step.status} />
+                                                    </div>
                                                 </div>
-                                                <div className="col-span-10 flex flex-col">
-                                                    <span
-                                                        className={`text-sm font-medium ${step.status === 'RUNNING' ? 'text-blue-700' : step.status === 'FAILED' ? 'text-red-700' : 'text-gray-700'}`}>
+
+                                                {/* Contenu */}
+                                                <div className="ml-6 md:ml-8 p-2 rounded-lg transition-colors hover:bg-gray-50">
+                                                    <div
+                                                        className={`text-sm font-medium ${step.status === 'RUNNING' ? 'text-blue-700' : step.status === 'FAILED' ? 'text-red-700' : 'text-gray-700'}`}
+                                                    >
                                                         {step.label}
-                                                    </span>
-                                                    <span className="text-xs text-gray-400 font-mono">
-                                                        {step.status}
-                                                    </span>
+                                                    </div>
+                                                    <div className="text-xs text-gray-400 font-mono">{step.status}</div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -200,13 +200,13 @@ export default function PipelineDetail() {
 function StepIcon({status}) {
     switch (status) {
         case "SUCCESS":
-            return <CheckCircle2 className="w-6 h-6 text-green-500"/>;
+            return <Check className="w-4 h-4 text-green-600"/>;
         case "FAILED":
-            return <XCircle className="w-6 h-6 text-red-500"/>;
+            return <X className="w-4 h-4 text-red-600"/>;
         case "RUNNING":
-            return <Loader2 className="w-6 h-6 text-blue-500 animate-spin"/>;
+            return <Loader2 className="w-4 h-4 text-blue-600 animate-spin"/>;
         default:
-            return <div className="w-5 h-5 rounded-full border-2 border-gray-200"/>;
+            return null;
     }
 }
 

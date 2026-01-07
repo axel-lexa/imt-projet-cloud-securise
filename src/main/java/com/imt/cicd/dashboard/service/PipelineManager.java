@@ -3,7 +3,7 @@ package com.imt.cicd.dashboard.service;
 import com.imt.cicd.dashboard.model.PipelineExecution;
 import com.imt.cicd.dashboard.model.PipelineStatus;
 import com.imt.cicd.dashboard.repository.PipelineRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -13,7 +13,6 @@ import java.io.File;
 import java.time.LocalDateTime;
 
 @Service
-@RequiredArgsConstructor
 public class PipelineManager {
 
     private final GitService gitService;
@@ -21,6 +20,21 @@ public class PipelineManager {
     private final SshService sshService;
     private final PipelineRepository repository;
     private final SimpMessagingTemplate messagingTemplate; // Injection du WebSocket
+
+    @Autowired
+    public PipelineManager(
+            GitService gitService,
+            CommandService commandService,
+            SshService sshService,
+            PipelineRepository repository,
+            SimpMessagingTemplate messagingTemplate
+    ) {
+        this.gitService = gitService;
+        this.commandService = commandService;
+        this.sshService = sshService;
+        this.repository = repository;
+        this.messagingTemplate = messagingTemplate;
+    }
 
     // Méthode utilitaire pour Sauvegarder ET Notifier le Frontend
     private void saveAndNotify(PipelineExecution execution) {
