@@ -1,7 +1,7 @@
 // src/pages/LoginPage.jsx
 import React from "react";
 import { GalleryVerticalEnd } from "lucide-react";
-import { LoginForm } from "@/components/LoginForm.jsx";
+import { LoginForm } from "../components/LoginForm.jsx";
 
 export default function LoginPage() {
     return (

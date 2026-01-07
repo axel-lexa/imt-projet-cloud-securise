@@ -1,9 +1,10 @@
 // src/components/login-form.jsx
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import React from "react"
+import { cn } from "../lib/utils.js"
+import { Button } from "./ui/button.jsx"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card.jsx"
+import { Input } from "./ui/input.jsx"
+import { Label } from "./ui/label.jsx"
 import { Github } from "lucide-react"
 
 export function LoginForm({ className, ...props }) {

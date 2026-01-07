@@ -1,5 +1,5 @@
 import React from "react";
-import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
+import {Card, CardContent, CardHeader, CardTitle} from "./ui/card.jsx";
 import {BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid} from "recharts";
 
 export default function ActivityChart({data}) {

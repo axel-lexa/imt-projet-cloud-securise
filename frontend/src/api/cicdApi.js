@@ -10,6 +10,11 @@ const API_URL = import.meta.env.DEV
 // Configuration globale d'Axios pour inclure les cookies (JSESSIONID)
 axios.defaults.withCredentials = true;
 
+// API Auth
+const AUTH_API = import.meta.env.DEV 
+    ? 'http://localhost:8081/api/auth' 
+    : '/api/auth';
+
 // 1. Récupérer les pipelines (GET)
 export const getPipelines = async () => {
     try {
@@ -48,9 +53,31 @@ export const triggerPipeline = async (repoUrl) => {
     }
 };
 
+// 3. Récupérer l'utilisateur connecté (GET)
+export const getCurrentUser = async () => {
+    try {
+        const response = await axios.get(`${AUTH_API}/me`);
+        return response.data;
+    } catch (error) {
+        console.error("Erreur lors de la récupération du profil utilisateur", error);
+        return null;
+    }
+};
+
+// 4. Logout
+export const logout = async () => {
+    try {
+        await axios.post(`${AUTH_API}/logout`);
+        window.location.href = '/login';
+    } catch (error) {
+        console.error("Erreur lors du logout", error);
+    }
+};
+
 export const getUsers = async () => {
     return [];
 };
+
 
 export const updateUserRole = async (userId, newRole) => {
     console.warn("API Utilisateurs non implémentée côté Backend");
