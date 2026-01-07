@@ -119,27 +119,20 @@ public class PipelineManager {
 
             Thread.sleep(15000); // Attente démarrage app
 
-            // CORRECTION 2 : Utilisation du vrai nom du conteneur (IMT-ArchitectureLogicielle-app)
             String zapCmd = "docker run --rm " +
                     "--network cicd-network " +
                     "ghcr.io/zaproxy/zaproxy:stable " +
-                    "zap-baseline.py " +
-                    "-t http://IMT-ArchitectureLogicielle-app:8080 " +
-                    "-I";
+                    "zap-api-scan.py " +                         // <--- Changement de script ici
+                    "-t http://IMT-ArchitectureLogicielle-app:8080/v3/api-docs " + // <--- URL du JSON Swagger
+                    "-f openapi " +                              // <--- Format explicite
+                    "-I";                                        // <--- Ignore les warnings (ne fail que sur ERROR)
 
             try {
-                execution.appendLog("Exécution du scan de vulnérabilités...");
-
-                // --- LIGNE À SUPPRIMER ---
-                // sshService.executeRemoteCommand("docker network connect cicd-network IMT-ArchitectureLogicielle-app", execution);
-                // -------------------------
-
-                // On exécute DIRECTEMENT la commande ZAP
+                execution.appendLog("Exécution du scan API via Swagger...");
+                // On exécute la commande ZAP
                 sshService.executeRemoteCommand(zapCmd, execution);
-
-                execution.appendLog("✅ Pentest validé : Aucune faille critique détectée.");
+                execution.appendLog("✅ Pentest API validé : Aucune faille critique détectée.");
             } catch (Exception e) {
-                // Si ZAP échoue (trouve des failles), on passe ici
                 throw new RuntimeException("⛔ PENTEST ÉCHOUÉ : Failles de sécurité détectées ! " + e.getMessage());
             }
             // =================================================================
