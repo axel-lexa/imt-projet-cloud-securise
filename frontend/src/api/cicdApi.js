@@ -1,15 +1,26 @@
 import axios from 'axios';
 
-// L'URL de votre Backend Spring Boot
-const API_URL = 'http://localhost:8080/api/pipelines';
+// Détection automatique de l'URL de base
+// Si on est en développement (Vite server), on pointe vers 8081
+// Si on est en production (servi par Spring), on utilise l'URL relative
+const API_URL = import.meta.env.DEV 
+    ? 'http://localhost:8081/api/pipelines' 
+    : '/api/pipelines';
+
+// Configuration globale d'Axios pour inclure les cookies (JSESSIONID)
+axios.defaults.withCredentials = true;
 
 // 1. Récupérer les pipelines (GET)
 export const getPipelines = async () => {
     try {
         const response = await axios.get(API_URL);
-        return response.data; // Retourne le tableau JSON envoyé par Java
+        return response.data; 
     } catch (error) {
         console.error("Erreur lors de la récupération des pipelines", error);
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+             // Redirection gérée par le composant ou le routeur idéalement
+             // window.location.href = "/login";
+        }
         return [];
     }
 };
@@ -27,7 +38,6 @@ export const getPipelineById = async (id) => {
 // 2. Déclencher un pipeline (POST)
 export const triggerPipeline = async (repoUrl) => {
     try {
-        // Le backend attend une String brute pour l'URL, on configure le header text/plain
         const response = await axios.post(`${API_URL}/run`, repoUrl, {
             headers: {'Content-Type': 'text/plain'}
         });
@@ -38,8 +48,6 @@ export const triggerPipeline = async (repoUrl) => {
     }
 };
 
-// (Optionnel) Pour les utilisateurs, si vous n'avez pas fait le Controller Java correspondant,
-// gardez le mock ou renvoyez un tableau vide pour ne pas faire planter le front.
 export const getUsers = async () => {
     return [];
 };
