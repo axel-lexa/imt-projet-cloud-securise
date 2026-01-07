@@ -49,21 +49,31 @@ export const triggerPipeline = async (repoUrl) => {
 };
 
 export const getUsers = async () => {
-    return [];
+    try {
+        // Appel au nouveau endpoint /api/users
+        const response = await axios.get(`${BASE_URL}/users`);
+        return response.data;
+    } catch (error) {
+        console.error("Erreur lors de la récupération des utilisateurs", error);
+        return [];
+    }
 };
 
 export const updateUserRole = async (userId, newRole) => {
-    console.warn("API Utilisateurs non implémentée côté Backend");
-    return null;
+    try {
+        const response = await axios.post(`${BASE_URL}/users/${userId}/role`, newRole, {
+            headers: {'Content-Type': 'text/plain'}
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Erreur update role", error);
+        throw error;
+    }
 };
 
-// Vérifie si l'utilisateur est authentifié
 export const checkAuthStatus = async () => {
     try {
-        // On tente d'accéder à une ressource protégée simple
-        // Si on reçoit une 200, c'est qu'on est loggé. Si 401/403, non.
-        // Vous pouvez aussi créer un endpoint dédié @GetMapping("/api/me") côté Spring
-        await axios.get(`${API_URL}`);
+        await axios.get(API_URL);
         return true;
     } catch (error) {
         return false;

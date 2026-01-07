@@ -39,22 +39,27 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 1. Activation de CORS pour autoriser le Frontend (port 5173)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                // 2. Désactivation CSRF (pour simplifier les appels API, à réactiver en prod idéalement)
                 .csrf(csrf -> csrf.disable())
-                // 3. Configuration des autorisations
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/login", "/error", "/webjars/**").permitAll() // Pages publiques
-                        .requestMatchers("/api/pipelines/webhook").permitAll() // Webhook GitHub doit être public
-                        .anyRequest().authenticated() // Tout le reste nécessite d'être connecté
+                        // MODIFICATION ICI : Ajoutez index.html et les assets statiques
+                        .requestMatchers(
+                                "/",
+                                "/login",
+                                "/index.html",       // INDISPENSABLE pour briser la boucle
+                                "/assets/**",        // Pour les fichiers JS/CSS buildés par Vite
+                                "/*.ico",            // Favicon
+                                "/*.json",           // Manifests etc
+                                "/error",
+                                "/webjars/**",
+                                "/api/pipelines/webhook"
+                        ).permitAll()
+                        .anyRequest().authenticated()
                 )
-                // 4. Configuration OAuth2
                 .oauth2Login(oauth2 -> oauth2
-                        // Après un login réussi via GitHub, on redirige vers le dashboard React
+                        .loginPage("/login")
                         .defaultSuccessUrl("http://localhost:8081/dashboard", true)
                 )
-                // 5. Gestion de la déconnexion
                 .logout(logout -> logout
                         .logoutSuccessUrl("http://localhost:8081/")
                         .deleteCookies("JSESSIONID")
