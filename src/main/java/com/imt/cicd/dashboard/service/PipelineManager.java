@@ -3,7 +3,8 @@ package com.imt.cicd.dashboard.service;
 import com.imt.cicd.dashboard.model.PipelineExecution;
 import com.imt.cicd.dashboard.model.PipelineStatus;
 import com.imt.cicd.dashboard.repository.PipelineRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -13,28 +14,18 @@ import java.io.File;
 import java.time.LocalDateTime;
 
 @Service
+@RequiredArgsConstructor
 public class PipelineManager {
 
     private final GitService gitService;
     private final CommandService commandService;
     private final SshService sshService;
     private final PipelineRepository repository;
+    private final QualityGateService qualityGateService;
     private final SimpMessagingTemplate messagingTemplate; // Injection du WebSocket
 
-    @Autowired
-    public PipelineManager(
-            GitService gitService,
-            CommandService commandService,
-            SshService sshService,
-            PipelineRepository repository,
-            SimpMessagingTemplate messagingTemplate
-    ) {
-        this.gitService = gitService;
-        this.commandService = commandService;
-        this.sshService = sshService;
-        this.repository = repository;
-        this.messagingTemplate = messagingTemplate;
-    }
+    @Value("${sonar.url:http://localhost:9000}")
+    private String sonarUrl;
 
     // Méthode utilitaire pour Sauvegarder ET Notifier le Frontend
     private void saveAndNotify(PipelineExecution execution) {
@@ -65,6 +56,31 @@ public class PipelineManager {
 
             commandService.executeCommand("chmod +x mvnw", tempDir, execution);
             commandService.executeCommand("./mvnw clean package", tempDir, execution); // Note: -DskipTests retiré
+
+            // 2.5 ANALYSE SONARQUBE & QUALITY GATE
+            execution.appendLog("--- ÉTAPE 2.5: ANALYSE QUALITÉ ---");
+
+            // Extraction du nom du projet depuis l'URL
+            String repoUrl = execution.getRepoUrl();
+            String projectKey = repoUrl.substring(repoUrl.lastIndexOf("/") + 1).replace(".git", "");
+            projectKey = projectKey.replaceAll("[^a-zA-Z0-9-_]", "-");
+
+            execution.appendLog("Clé du projet SonarQube : " + projectKey);
+
+            // Commande SonarQube en mode SILENCIEUX (quiet = true)
+            String sonarCmd = "./mvnw org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar " +
+                    "-Dsonar.projectKey=" + projectKey + " " +
+                    "-Dsonar.host.url=" + sonarUrl + " " +
+                    "-Dsonar.login=admin " +
+                    "-Dsonar.password=admin123 " +
+                    "-Dorg.slf4j.simpleLogger.defaultLogLevel=warn";
+
+            commandService.executeCommand(sonarCmd, tempDir, execution, true);
+
+            // Vérification du Quality Gate via l'API
+            qualityGateService.verifyQuality(projectKey);
+            execution.appendLog("✅ Quality Gate validé par SonarQube.");
+
 
             // 3. DOCKER BUILD
             execution.appendLog("--- ÉTAPE 3: BUILD DOCKER ---");
@@ -116,8 +132,6 @@ public class PipelineManager {
                             "docker compose -f " + remoteHome + "/docker-compose.yml up -d";
 
             sshService.executeRemoteCommand(deployCmd, execution);
-
-            execution.setStatus(PipelineStatus.SUCCESS);
 
         } catch (Exception e) {
             execution.setStatus(PipelineStatus.FAILED);
