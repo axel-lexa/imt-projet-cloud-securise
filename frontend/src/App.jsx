@@ -4,8 +4,8 @@ import Dashboard from './pages/Dashboard';
 import PipelineDetail from './pages/PipelineDetail';
 import LoginPage from './pages/LoginPage';
 import ProtectedRoute from './components/ProtectedRoute';
-import Users from "@/pages/Users.jsx";
-import History from "@/pages/History.jsx"; // Import du composant créé
+import Users from './pages/Users';
+import History from "@/pages/History";
 
 function App() {
     return (

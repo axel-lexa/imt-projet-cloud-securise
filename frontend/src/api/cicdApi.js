@@ -3,9 +3,11 @@ import axios from 'axios';
 // Détection automatique de l'URL de base
 // Si on est en développement (Vite server), on pointe vers 8081
 // Si on est en production (servi par Spring), on utilise l'URL relative
-const API_URL = import.meta.env.DEV
-    ? 'http://localhost:8081/api/pipelines'
-    : '/api/pipelines';
+const BASE_URL = import.meta.env.DEV
+    ? 'http://localhost:8081/api'
+    : '/api';
+
+const API_URL = `${BASE_URL}/pipelines`;
 
 // Configuration globale d'Axios pour inclure les cookies (JSESSIONID)
 axios.defaults.withCredentials = true;

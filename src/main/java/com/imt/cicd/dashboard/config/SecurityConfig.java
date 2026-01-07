@@ -6,7 +6,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -19,7 +18,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -52,13 +50,16 @@ public class SecurityConfig {
                                 "/*.json",           // Manifests etc
                                 "/error",
                                 "/webjars/**",
-                                "/api/pipelines/webhook"
+                                "/api/pipelines/webhook",
+                                "/api/users/debug",  // Pour déboguer l'état de la BDD
+                                "/api/health/**"     // Pour vérifier la santé de l'app et la BDD
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2 -> oauth2
                         .loginPage("/login")
-                        .defaultSuccessUrl("http://localhost:8081/dashboard", true)
+                        .successHandler(successHandler())
+                        // La redirection est gérée dans successHandler (response.sendRedirect(frontendUrl))
                 )
                 .logout(logout -> logout
                         .logoutSuccessUrl("http://localhost:8081/")
@@ -84,27 +85,52 @@ public class SecurityConfig {
     @Bean
     public AuthenticationSuccessHandler successHandler() {
         return (request, response, authentication) -> {
-            OAuth2User oauthUser = (OAuth2User) authentication.getPrincipal();
-            Map<String, Object> attributes = oauthUser.getAttributes();
+            try {
+                OAuth2User oauthUser = (OAuth2User) authentication.getPrincipal();
+                Map<String, Object> attributes = oauthUser.getAttributes();
 
-            // GitHub 'login' is the username. 'email' might be null if private.
-            String login = (String) attributes.get("login");
-            String email = (String) attributes.get("email");
+                System.out.println("📍 SUCCESS HANDLER - Authentification OAuth2 reçue");
+                System.out.println("📊 Attributs GitHub reçus: " + attributes);
 
-            // Use login as the identifier to match userAuthoritiesMapper logic
-            // Fallback to email if login is somehow null
-            String identifier = (login != null) ? login : email;
+                // Identifiants GitHub : login est toujours présent, email peut être null/privé, id est un fallback sûr
+                String login = (String) attributes.get("login");
+                String email = (String) attributes.get("email");
+                String githubId = attributes.get("id") != null ? String.valueOf(attributes.get("id")) : null;
 
-            if (identifier != null) {
-                User user = userRepository.findByEmail(identifier).orElse(new User());
-                user.setEmail(identifier); // Storing identifier (login) in email field
-                user.setName(login != null ? login : "Unknown");
-                if (user.getRole() == null) user.setRole("DEV"); // Rôle par défaut
-                userRepository.save(user);
+                // Identifiant unique pour notre User : login, sinon email, sinon id GitHub
+                String identifier = login != null ? login : (email != null ? email : githubId);
+
+                System.out.println("👤 Login: " + login);
+                System.out.println("📧 Email: " + email);
+                System.out.println("🆔 GitHub ID: " + githubId);
+                System.out.println("🔑 Identifiant retenu: " + identifier);
+
+                if (identifier != null) {
+                    long before = userRepository.count();
+
+                    User user = userRepository.findByEmail(identifier).orElse(new User());
+                    user.setEmail(identifier); // on stocke l’identifiant unique dans le champ email
+                    user.setName(login != null ? login : (identifier != null ? identifier : "Unknown"));
+                    if (user.getRole() == null) user.setRole("DEV"); // rôle par défaut
+
+                    // saveAndFlush pour forcer l’écriture immédiate en BDD
+                    User savedUser = userRepository.saveAndFlush(user);
+                    long after = userRepository.count();
+
+                    System.out.println("✅ Utilisateur sauvegardé/mis à jour: " + savedUser.getName()
+                            + " (ID: " + savedUser.getId() + ", Rôle: " + savedUser.getRole() + ")");
+                    System.out.println("📈 Compteur users avant/after: " + before + " -> " + after);
+                } else {
+                    System.out.println("❌ Impossible de récupérer un identifiant (login/email/id vides)");
+                }
+
+                // Redirection vers le front
+                response.sendRedirect(frontendUrl);
+            } catch (Exception e) {
+                System.err.println("❌ Erreur dans successHandler: " + e.getMessage());
+                e.printStackTrace();
+                response.sendError(500, "Erreur lors de la sauvegarde de l'utilisateur");
             }
-
-            // Redirection vers le front
-            response.sendRedirect(frontendUrl);
         };
     }
 

@@ -1,11 +1,11 @@
 import React from "react";
-import {Link, useLocation} from "react-router-dom";
-// 1. AJOUT DE L'IMPORT LogOut
+import {Link, useLocation, useNavigate} from "react-router-dom";
 import {LayoutDashboard, History, Users, Settings, LogOut} from "lucide-react";
 import {Separator} from "@/components/ui/separator";
 
 export default function Sidebar() {
     const location = useLocation();
+    const navigate = useNavigate();
 
     const navItems = [
         {label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4"/>, path: "/"},
@@ -13,11 +13,13 @@ export default function Sidebar() {
         {label: "Utilisateurs", icon: <Users className="w-4 h-4"/>, path: "/users"},
     ];
 
-    // Fonction de déconnexion
-    const handleLogout = () => {
-        // On force une redirection complète du navigateur vers l'endpoint de Spring Boot
-        // Cela permet au backend de supprimer le cookie de session (JSESSIONID)
-        window.location.href = "http://localhost:8081/logout";
+    const handleLogout = async () => {
+        try {
+            await fetch("http://localhost:8081/logout", {method: "POST"});
+            navigate("/login", {replace: true});
+        } catch (error) {
+            console.error("Erreur lors de la déconnexion:", error);
+        }
     };
 
     return (
@@ -65,7 +67,6 @@ export default function Sidebar() {
                     Paramètres
                 </Link>
 
-                {/* 2. AJOUT DU BOUTON DE DÉCONNEXION */}
                 <button
                     onClick={handleLogout}
                     className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 w-full transition-colors rounded-md text-left"
