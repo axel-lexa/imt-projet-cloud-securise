@@ -7,6 +7,7 @@ import SuccessRateChart from "../components/SuccessRateChart";
 import {Play, CheckCircle2, AlertCircle} from "lucide-react";
 import {Card, CardContent} from "../components/ui/card.jsx";
 import {getPipelines} from "../api/cicdApi";
+import { Link } from "react-router-dom";
 
 export default function Dashboard() {
     const [pipelines, setPipelines] = useState([]);
@@ -96,8 +97,19 @@ export default function Dashboard() {
                         {pipelines.length === 0 ? (
                             <p className="text-gray-500 col-span-3 text-center py-10">Aucun pipeline.</p>
                         ) : (
-                            pipelines.map(p => <PipelineCard key={p.id} pipeline={p}/>)
+                            [...pipelines]
+                                .sort((a, b) => {
+                                    const as = a.startTime ? new Date(a.startTime).getTime() : 0;
+                                    const bs = b.startTime ? new Date(b.startTime).getTime() : 0;
+                                    if (bs !== as) return bs - as;
+                                    return (b.id || 0) - (a.id || 0);
+                                })
+                                .slice(0, 3)
+                                .map(p => <PipelineCard key={p.id} pipeline={p} />)
                         )}
+                    </div>
+                    <div className="mt-2">
+                        <Link to="/history" className="text-sm text-primary hover:underline">Voir tout l'historique</Link>
                     </div>
                 </main>
             </div>

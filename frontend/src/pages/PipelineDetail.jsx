@@ -145,8 +145,8 @@ export default function PipelineDetail() {
                                     <div className="space-y-5">
                                         {steps.map((step, idx) => (
                                             <div key={step.id} className="relative pb-5">
-                                                <div
-                                                    className={`${idx === steps.length - 1 ? 'hidden' : ''} absolute left-4 md:left-5 -translate-x-1/2 top-8 h-[calc(100%+2rem)] w-px ${step.status === 'SUCCESS' ? 'bg-green-300' : 'bg-gray-200'} z-0`}/>
+                                                    <div
+                                                        className={`${idx === steps.length - 1 ? 'hidden' : ''} absolute left-4 md:left-5 -translate-x-1/2 top-8 h-[calc(100%+0.5rem)] w-px ${step.status === 'SUCCESS' ? 'bg-green-300' : 'bg-gray-200'} z-0`}/>
                                                 <div
                                                     className="absolute left-4 md:left-5 -translate-x-1/2 top-1.5 z-10">
                                                     <div
