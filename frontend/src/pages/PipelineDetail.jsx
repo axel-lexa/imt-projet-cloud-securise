@@ -29,7 +29,7 @@ export default function PipelineDetail() {
     const [pipeline, setPipeline] = useState(null);
     const logsEndRef = useRef(null);
 
-    // Fonction de parsing des étapes (inchangée)
+    // Fonction de parsing des étapes
     const getStepsStatus = (logs, globalStatus) => {
         if (!logs) logs = "";
         return STEPS_DEFINITION.map((step, index) => {
@@ -67,18 +67,29 @@ export default function PipelineDetail() {
     useEffect(() => {
         const client = new Client({
             webSocketFactory: () => new SockJS('/ws'),
-
-            // Reconnexion automatique
             reconnectDelay: 2000,
 
             onConnect: () => {
                 console.log("Connecté au WebSocket !");
-                // Abonnement au topic spécifique de ce pipeline
+
+                // ABONNEMENT 1 : Mises à jour globales
                 client.subscribe(`/topic/pipeline/${id}`, (message) => {
                     if (message.body) {
                         const updatedPipeline = JSON.parse(message.body);
                         setPipeline(updatedPipeline);
                     }
+                });
+
+                // ABONNEMENT 2 : Streaming des logs ligne par ligne
+                client.subscribe(`/topic/logs/${id}`, (message) => {
+                    const newLine = message.body;
+                    setPipeline((prev) => {
+                        if (!prev) return null;
+                        return {
+                            ...prev,
+                            logs: (prev.logs || "") + newLine + "\n"
+                        };
+                    });
                 });
             },
             onStompError: (frame) => {
@@ -88,18 +99,17 @@ export default function PipelineDetail() {
 
         client.activate();
 
-        // Nettoyage lors du démontage du composant
         return () => {
             client.deactivate();
         };
     }, [id]);
 
-    // Scroll automatique vers le bas
+    // Scroll automatique
     useEffect(() => {
-        if (pipeline?.status === "RUNNING") {
+        if (pipeline?.status === "RUNNING" || pipeline?.status === "SUCCESS" || pipeline?.status === "FAILED") {
             logsEndRef.current?.scrollIntoView({behavior: "smooth"});
         }
-    }, [pipeline?.logs]);
+    }, [pipeline?.logs, pipeline?.status]);
 
     if (!pipeline) return (
         <div className="flex items-center justify-center h-screen bg-gray-50">
@@ -116,7 +126,6 @@ export default function PipelineDetail() {
                 <Topbar title={`Pipeline #${pipeline.id}`}/>
 
                 <main className="p-6 space-y-6 max-w-6xl mx-auto w-full">
-                    {/* Header */}
                     <div className="flex items-center justify-between">
                         <Link to="/">
                             <Button variant="ghost" className="gap-2">
@@ -127,7 +136,6 @@ export default function PipelineDetail() {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Étapes */}
                         <Card className="lg:col-span-1 h-fit">
                             <CardHeader>
                                 <CardTitle>Étapes du Processus</CardTitle>
@@ -137,23 +145,19 @@ export default function PipelineDetail() {
                                     <div className="space-y-5">
                                         {steps.map((step, idx) => (
                                             <div key={step.id} className="relative pb-5">
-                                                {/* Connecteur: part sous l'icône et va jusqu'au rond suivant */}
                                                 <div
-                                                    className={`${idx === steps.length - 1 ? 'hidden' : ''} absolute left-4 md:left-5 -translate-x-1/2 top-8 h-[calc(100%+2rem)] w-px ${step.status === 'SUCCESS' ? 'bg-green-300' : 'bg-gray-200'} z-0`}
-                                                />
-
-                                                {/* Icône */}
-                                                <div className="absolute left-4 md:left-5 -translate-x-1/2 top-1.5 z-10">
-                                                    <div className="w-8 h-8 rounded-full bg-white ring-2 ring-gray-200 flex items-center justify-center">
-                                                        <StepIcon status={step.status} />
+                                                    className={`${idx === steps.length - 1 ? 'hidden' : ''} absolute left-4 md:left-5 -translate-x-1/2 top-8 h-[calc(100%+2rem)] w-px ${step.status === 'SUCCESS' ? 'bg-green-300' : 'bg-gray-200'} z-0`}/>
+                                                <div
+                                                    className="absolute left-4 md:left-5 -translate-x-1/2 top-1.5 z-10">
+                                                    <div
+                                                        className="w-8 h-8 rounded-full bg-white ring-2 ring-gray-200 flex items-center justify-center">
+                                                        <StepIcon status={step.status}/>
                                                     </div>
                                                 </div>
-
-                                                {/* Contenu */}
-                                                <div className="ml-6 md:ml-8 p-2 rounded-lg transition-colors hover:bg-gray-50">
+                                                <div
+                                                    className="ml-6 md:ml-8 p-2 rounded-lg transition-colors hover:bg-gray-50">
                                                     <div
-                                                        className={`text-sm font-medium ${step.status === 'RUNNING' ? 'text-blue-700' : step.status === 'FAILED' ? 'text-red-700' : 'text-gray-700'}`}
-                                                    >
+                                                        className={`text-sm font-medium ${step.status === 'RUNNING' ? 'text-blue-700' : step.status === 'FAILED' ? 'text-red-700' : 'text-gray-700'}`}>
                                                         {step.label}
                                                     </div>
                                                     <div className="text-xs text-gray-400 font-mono">{step.status}</div>
@@ -165,8 +169,7 @@ export default function PipelineDetail() {
                             </CardContent>
                         </Card>
 
-                        {/* Logs */}
-                        <Card className="lg:col-span-2 flex flex-col h-[600px]">
+                        <Card className="lg:col-span-2 flex flex-col h-150">
                             <CardHeader className="border-b bg-gray-50/50 py-3">
                                 <div className="flex items-center gap-2">
                                     <Terminal className="w-4 h-4 text-gray-500"/>
@@ -196,7 +199,6 @@ export default function PipelineDetail() {
     );
 }
 
-// Sous-composants inchangés
 function StepIcon({status}) {
     switch (status) {
         case "SUCCESS":

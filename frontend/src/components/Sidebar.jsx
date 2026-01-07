@@ -25,6 +25,18 @@ export default function Sidebar() {
         {label: "Utilisateurs", icon: <Users className="w-4 h-4"/>, path: "/users"},
     ];
 
+    const handleLogout = async () => {
+        try {
+            await fetch("http://localhost:8081/logout", {
+                method: "POST",
+                credentials: "include"
+            });
+            navigate("/login", {replace: true});
+        } catch (error) {
+            console.error("Erreur lors de la déconnexion:", error);
+        }
+    };
+
     return (
         <aside className="w-64 border-r bg-card flex flex-col h-screen sticky top-0">
             <div className="p-6">
