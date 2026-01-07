@@ -1,5 +1,5 @@
 import React, {useState} from "react";
-import {Button} from "@/components/ui/button";
+import {Button} from "./ui/button.jsx";
 import {Loader2, Rocket} from "lucide-react";
 import {triggerPipeline} from "../api/cicdApi";
 

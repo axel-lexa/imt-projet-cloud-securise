@@ -12,7 +12,7 @@ export default defineConfig({
     },
     // Ajout pour la compatibilité SockJS / StompJS
     define: {
-        global: 'window',
+        global: 'globalThis',
     },
     server: {
         proxy: {

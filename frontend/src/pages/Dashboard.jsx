@@ -5,7 +5,7 @@ import PipelineCard from "../components/PipelineCard";
 import ActivityChart from "../components/ActivityChart";
 import SuccessRateChart from "../components/SuccessRateChart";
 import {Play, CheckCircle2, AlertCircle} from "lucide-react";
-import {Card, CardContent} from "@/components/ui/card";
+import {Card, CardContent} from "../components/ui/card.jsx";
 import {getPipelines} from "../api/cicdApi";
 
 export default function Dashboard() {
