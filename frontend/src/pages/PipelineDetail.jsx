@@ -2,9 +2,9 @@ import React, {useEffect, useState, useRef} from "react";
 import {useParams, Link} from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
-import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
-import {Badge} from "@/components/ui/badge";
-import {Button} from "@/components/ui/button";
+import {Card, CardContent, CardHeader, CardTitle} from "../components/ui/card.jsx";
+import {Badge} from "../components/ui/badge.jsx";
+import {Button} from "../components/ui/button.jsx";
 import {
     CheckCircle2, XCircle, Loader2, Clock,
     ArrowLeft, Terminal, Check, X

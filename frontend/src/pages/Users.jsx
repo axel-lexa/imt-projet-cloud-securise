@@ -9,11 +9,11 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from "@/components/ui/table";
-import {Badge} from "@/components/ui/badge";
-import {Button} from "@/components/ui/button";
-import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
+} from "../components/ui/table.jsx";
+import {Badge} from "../components/ui/badge.jsx";
+import {Button} from "../components/ui/button.jsx";
+import {Card, CardContent, CardHeader, CardTitle} from "../components/ui/card.jsx";
+import {Avatar, AvatarFallback, AvatarImage} from "../components/ui/avatar.jsx";
 import {Loader2, ShieldAlert, ShieldCheck} from "lucide-react";
 
 export default function Users() {
