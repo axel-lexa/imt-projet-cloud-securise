@@ -1,11 +1,12 @@
-import React from 'react';
-import {BrowserRouter as Router, Routes, Route, Navigate} from 'react-router-dom';
-import Dashboard from './pages/Dashboard';
-import PipelineDetail from './pages/PipelineDetail';
-import LoginPage from './pages/LoginPage';
-import ProtectedRoute from './components/ProtectedRoute';
-import Users from './pages/Users';
-import History from "@/pages/History";
+// src/App.jsx
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import Dashboard from "./pages/Dashboard";
+import Users from "./pages/Users";
+import LoginPage from "./pages/LoginPage";
+import PipelineDetail from "./pages/PipelineDetail";
+import History from "./pages/History";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
     return (

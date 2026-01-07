@@ -1,11 +1,23 @@
-import React from "react";
-import {Link, useLocation, useNavigate} from "react-router-dom";
-import {LayoutDashboard, History, Users, Settings, LogOut} from "lucide-react";
-import {Separator} from "@/components/ui/separator";
+// src/components/Sidebar.jsx
+import React, { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { LayoutDashboard, History, Users, LogOut } from "lucide-react";
+import { Separator } from "./ui/separator.jsx";
+import { getCurrentUser, logout } from "../api/cicdApi.js";
 
 export default function Sidebar() {
     const location = useLocation();
-    const navigate = useNavigate();
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchUser = async () => {
+            const userData = await getCurrentUser();
+            setUser(userData);
+            setLoading(false);
+        };
+        fetchUser();
+    }, []);
 
     const navItems = [
         {label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4"/>, path: "/"},
@@ -15,7 +27,10 @@ export default function Sidebar() {
 
     const handleLogout = async () => {
         try {
-            await fetch("http://localhost:8081/logout", {method: "POST"});
+            await fetch("http://localhost:8081/logout", {
+                method: "POST",
+                credentials: "include"
+            });
             navigate("/login", {replace: true});
         } catch (error) {
             console.error("Erreur lors de la déconnexion:", error);
@@ -56,24 +71,44 @@ export default function Sidebar() {
                 })}
             </nav>
 
-            <div className="p-4 mt-auto space-y-2">
-                <Separator className="mb-4"/>
-
-                <Link
-                    to="/settings"
-                    className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-foreground w-full transition-colors"
-                >
-                    <Settings className="w-4 h-4"/>
-                    Paramètres
-                </Link>
-
-                <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 w-full transition-colors rounded-md text-left"
-                >
-                    <LogOut className="w-4 h-4"/>
-                    Se déconnecter
-                </button>
+            <div className="p-4 mt-auto">
+                <Separator className="mb-4" />
+                {loading ? (
+                    <div className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground">
+                        Chargement...
+                    </div>
+                ) : user && user.authenticated ? (
+                    <div className="flex items-center gap-3 px-3 py-2 text-sm">
+                        {user.avatarUrl && (
+                            <img
+                                src={user.avatarUrl}
+                                alt={user.name}
+                                className="w-8 h-8 rounded-full border border-muted-foreground"
+                                loading="lazy"
+                            />
+                        )}
+                        <div className="flex-1 min-w-0">
+                            <p className="font-medium text-foreground truncate">{user.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">@{user.login}</p>
+                        </div>
+                    </div>
+                ) : (
+                    <Link
+                        to="/login"
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-foreground w-full transition-colors"
+                    >
+                        Se connecter
+                    </Link>
+                )}
+                {user && user.authenticated && (
+                    <button
+                        onClick={logout}
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:text-foreground w-full transition-colors mt-3 hover:bg-secondary rounded-md"
+                    >
+                        <LogOut className="w-4 h-4" />
+                        Déconnexion
+                    </button>
+                )}
             </div>
         </aside>
     );

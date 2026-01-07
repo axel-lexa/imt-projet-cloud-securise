@@ -2,12 +2,12 @@ import React, {useEffect, useState, useRef} from "react";
 import {useParams, Link} from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
-import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
-import {Badge} from "@/components/ui/badge";
-import {Button} from "@/components/ui/button";
+import {Card, CardContent, CardHeader, CardTitle} from "../components/ui/card.jsx";
+import {Badge} from "../components/ui/badge.jsx";
+import {Button} from "../components/ui/button.jsx";
 import {
     CheckCircle2, XCircle, Loader2, Clock,
-    ArrowLeft, Terminal
+    ArrowLeft, Terminal, Check, X
 } from "lucide-react";
 import {getPipelineById} from "../api/cicdApi";
 
@@ -29,7 +29,7 @@ export default function PipelineDetail() {
     const [pipeline, setPipeline] = useState(null);
     const logsEndRef = useRef(null);
 
-    // Fonction de parsing des étapes (inchangée)
+    // Fonction de parsing des étapes
     const getStepsStatus = (logs, globalStatus) => {
         if (!logs) logs = "";
         return STEPS_DEFINITION.map((step, index) => {
@@ -67,18 +67,29 @@ export default function PipelineDetail() {
     useEffect(() => {
         const client = new Client({
             webSocketFactory: () => new SockJS('/ws'),
-
-            // Reconnexion automatique
             reconnectDelay: 2000,
 
             onConnect: () => {
                 console.log("Connecté au WebSocket !");
-                // Abonnement au topic spécifique de ce pipeline
+
+                // ABONNEMENT 1 : Mises à jour globales
                 client.subscribe(`/topic/pipeline/${id}`, (message) => {
                     if (message.body) {
                         const updatedPipeline = JSON.parse(message.body);
                         setPipeline(updatedPipeline);
                     }
+                });
+
+                // ABONNEMENT 2 : Streaming des logs ligne par ligne
+                client.subscribe(`/topic/logs/${id}`, (message) => {
+                    const newLine = message.body;
+                    setPipeline((prev) => {
+                        if (!prev) return null;
+                        return {
+                            ...prev,
+                            logs: (prev.logs || "") + newLine + "\n"
+                        };
+                    });
                 });
             },
             onStompError: (frame) => {
@@ -88,18 +99,17 @@ export default function PipelineDetail() {
 
         client.activate();
 
-        // Nettoyage lors du démontage du composant
         return () => {
             client.deactivate();
         };
     }, [id]);
 
-    // Scroll automatique vers le bas
+    // Scroll automatique
     useEffect(() => {
-        if (pipeline?.status === "RUNNING") {
+        if (pipeline?.status === "RUNNING" || pipeline?.status === "SUCCESS" || pipeline?.status === "FAILED") {
             logsEndRef.current?.scrollIntoView({behavior: "smooth"});
         }
-    }, [pipeline?.logs]);
+    }, [pipeline?.logs, pipeline?.status]);
 
     if (!pipeline) return (
         <div className="flex items-center justify-center h-screen bg-gray-50">
@@ -116,7 +126,6 @@ export default function PipelineDetail() {
                 <Topbar title={`Pipeline #${pipeline.id}`}/>
 
                 <main className="p-6 space-y-6 max-w-6xl mx-auto w-full">
-                    {/* Header */}
                     <div className="flex items-center justify-between">
                         <Link to="/">
                             <Button variant="ghost" className="gap-2">
@@ -127,46 +136,40 @@ export default function PipelineDetail() {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Étapes */}
                         <Card className="lg:col-span-1 h-fit">
                             <CardHeader>
                                 <CardTitle>Étapes du Processus</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-0">
-                                <div className="grid grid-cols-12 text-xs font-semibold text-gray-400 mb-4 px-2">
-                                    <div className="col-span-2 text-center">ÉTAT</div>
-                                    <div className="col-span-10">NOM DE L'ÉTAPE</div>
-                                </div>
-                                <div className="space-y-4">
-                                    {steps.map((step, idx) => (
-                                        <div key={step.id} className="relative group">
-                                            {idx !== steps.length - 1 && (
+                            <CardContent className="pt-2">
+                                <div className="relative pl-8 md:pl-10">
+                                    <div className="space-y-5">
+                                        {steps.map((step, idx) => (
+                                            <div key={step.id} className="relative pb-5">
                                                 <div
-                                                    className={`absolute left-[1.1rem] top-8 w-[2px] h-6 ${step.status === 'SUCCESS' ? 'bg-green-200' : 'bg-gray-100'}`}/>
-                                            )}
-                                            <div
-                                                className="grid grid-cols-12 items-center gap-3 p-2 rounded-lg transition-colors hover:bg-gray-50">
-                                                <div className="col-span-2 flex justify-center">
-                                                    <StepIcon status={step.status}/>
+                                                    className={`${idx === steps.length - 1 ? 'hidden' : ''} absolute left-4 md:left-5 -translate-x-1/2 top-8 h-[calc(100%+2rem)] w-px ${step.status === 'SUCCESS' ? 'bg-green-300' : 'bg-gray-200'} z-0`}/>
+                                                <div
+                                                    className="absolute left-4 md:left-5 -translate-x-1/2 top-1.5 z-10">
+                                                    <div
+                                                        className="w-8 h-8 rounded-full bg-white ring-2 ring-gray-200 flex items-center justify-center">
+                                                        <StepIcon status={step.status}/>
+                                                    </div>
                                                 </div>
-                                                <div className="col-span-10 flex flex-col">
-                                                    <span
+                                                <div
+                                                    className="ml-6 md:ml-8 p-2 rounded-lg transition-colors hover:bg-gray-50">
+                                                    <div
                                                         className={`text-sm font-medium ${step.status === 'RUNNING' ? 'text-blue-700' : step.status === 'FAILED' ? 'text-red-700' : 'text-gray-700'}`}>
                                                         {step.label}
-                                                    </span>
-                                                    <span className="text-xs text-gray-400 font-mono">
-                                                        {step.status}
-                                                    </span>
+                                                    </div>
+                                                    <div className="text-xs text-gray-400 font-mono">{step.status}</div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        {/* Logs */}
-                        <Card className="lg:col-span-2 flex flex-col h-[600px]">
+                        <Card className="lg:col-span-2 flex flex-col h-150">
                             <CardHeader className="border-b bg-gray-50/50 py-3">
                                 <div className="flex items-center gap-2">
                                     <Terminal className="w-4 h-4 text-gray-500"/>
@@ -196,17 +199,16 @@ export default function PipelineDetail() {
     );
 }
 
-// Sous-composants inchangés
 function StepIcon({status}) {
     switch (status) {
         case "SUCCESS":
-            return <CheckCircle2 className="w-6 h-6 text-green-500"/>;
+            return <Check className="w-4 h-4 text-green-600"/>;
         case "FAILED":
-            return <XCircle className="w-6 h-6 text-red-500"/>;
+            return <X className="w-4 h-4 text-red-600"/>;
         case "RUNNING":
-            return <Loader2 className="w-6 h-6 text-blue-500 animate-spin"/>;
+            return <Loader2 className="w-4 h-4 text-blue-600 animate-spin"/>;
         default:
-            return <div className="w-5 h-5 rounded-full border-2 border-gray-200"/>;
+            return null;
     }
 }
 

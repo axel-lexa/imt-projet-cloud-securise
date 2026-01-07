@@ -1,5 +1,5 @@
 import React from "react";
-import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
+import {Card, CardContent, CardHeader, CardTitle} from "./ui/card.jsx";
 import {CheckCircle2, XCircle, Clock, Loader2, GitBranch} from "lucide-react";
 import {Link} from "react-router-dom";
 

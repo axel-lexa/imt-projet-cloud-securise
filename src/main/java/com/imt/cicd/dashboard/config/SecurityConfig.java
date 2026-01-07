@@ -6,23 +6,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.oauth2.core.user.OAuth2User;
-import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import jakarta.servlet.http.HttpServletResponse;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 
 @Configuration
 @EnableWebSecurity
@@ -37,32 +35,54 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // 1. Configuration CORS pour autoriser le frontend
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(csrf -> csrf.disable())
+
+                // 2. Désactivation CSRF (souvent nécessaire pour les APIs stateless/SPA simples)
+                .csrf(AbstractHttpConfigurer::disable)
+
+                // 3. Gestion des accès par URL
                 .authorizeHttpRequests(auth -> auth
-                        // MODIFICATION ICI : Ajoutez index.html et les assets statiques
                         .requestMatchers(
                                 "/",
                                 "/login",
-                                "/index.html",       // INDISPENSABLE pour briser la boucle
-                                "/assets/**",        // Pour les fichiers JS/CSS buildés par Vite
-                                "/*.ico",            // Favicon
-                                "/*.json",           // Manifests etc
+                                "/index.html",
+                                "/assets/**",
+                                "/*.ico",
+                                "/*.json",
                                 "/error",
                                 "/webjars/**",
                                 "/api/pipelines/webhook",
-                                "/api/health/**"     // Pour vérifier la santé de l'app et la BDD
+                                "/api/health/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
-                .oauth2Login(oauth2 -> oauth2
-                        .loginPage("/login")
-                        .successHandler(successHandler())
-                        // La redirection est gérée dans successHandler (response.sendRedirect(frontendUrl))
+
+                // 4. Gestion des erreurs API (403 au lieu de redirection Login)
+                .exceptionHandling(exception -> exception
+                        .defaultAuthenticationEntryPointFor(
+                                new HttpStatusEntryPoint(HttpStatus.FORBIDDEN),
+                                request -> request.getServletPath().startsWith("/api/")
+                        )
                 )
+
+                // 5. Configuration OAuth2 (Login GitHub)
+                .oauth2Login(oauth2 -> oauth2
+                        .loginPage("http://localhost:8081/login") // Redirection explicite si non connecté
+                        .successHandler(successHandler())
+                )
+
+                // 6. Configuration du Logout (Nettoyage complet)
                 .logout(logout -> logout
-                        .logoutSuccessUrl("http://localhost:8081/")
+                        .logoutUrl("/logout")
+                        // On remplace logoutSuccessUrl par ceci :
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            response.setStatus(HttpServletResponse.SC_OK);
+                        })
+                        .invalidateHttpSession(true)
+                        .clearAuthentication(true)
                         .deleteCookies("JSESSIONID")
+                        .permitAll()
                 );
 
         return http.build();
@@ -71,10 +91,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:8081", "http://localhost:3000")); // URL du Frontend
+        // Autoriser le port de développement (Vite) et de prod
+        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:8081", "http://localhost:3000"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true); // Important pour les cookies de session/OAuth2
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
@@ -97,42 +118,16 @@ public class SecurityConfig {
                     User user = userRepository.findByEmail(identifier).orElse(new User());
                     user.setEmail(identifier);
                     user.setName(login != null ? login : identifier);
+                    // Rôle par défaut
                     if (user.getRole() == null) user.setRole("DEV");
                     userRepository.saveAndFlush(user);
                 }
 
+                // Redirection vers le frontend après login réussi
                 response.sendRedirect(frontendUrl);
             } catch (Exception e) {
                 response.sendError(500, "Erreur lors de la sauvegarde de l'utilisateur");
             }
-        };
-    }
-
-    private GrantedAuthoritiesMapper userAuthoritiesMapper() {
-        return (authorities) -> {
-            Set<SimpleGrantedAuthority> mappedAuthorities = new HashSet<>();
-
-            authorities.forEach(authority -> {
-                if (authority instanceof OAuth2UserAuthority oauth2User) {
-                    Map<String, Object> attributes = oauth2User.getAttributes();
-
-                    // Avec GitHub, l'email est souvent privé/null.
-                    // On utilise le 'login' (pseudo) comme identifiant unique qu'on mappera sur le champ 'email' de notre User.
-                    String gitHubLogin = (String) attributes.get("login");
-
-                    // Recherche en BDD via le login
-                    Optional<User> userOpt = userRepository.findByEmail(gitHubLogin);
-
-                    if (userOpt.isPresent()) {
-                        String role = userOpt.get().getRole();
-                        mappedAuthorities.add(new SimpleGrantedAuthority(role));
-                    } else {
-                        // Rôle par défaut si pas en BDD
-                        mappedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
-                    }
-                }
-            });
-            return mappedAuthorities;
         };
     }
 }
