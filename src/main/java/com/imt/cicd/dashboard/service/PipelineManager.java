@@ -22,15 +22,13 @@ public class PipelineManager {
     private final SshService sshService;
     private final PipelineRepository repository;
     private final QualityGateService qualityGateService;
-    private final SimpMessagingTemplate messagingTemplate; // Injection du WebSocket
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Value("${sonar.url:http://localhost:9000}")
     private String sonarUrl;
 
-    // Méthode utilitaire pour Sauvegarder ET Notifier le Frontend
     private void saveAndNotify(PipelineExecution execution) {
         repository.save(execution);
-        // Envoie l'objet execution sur le topic spécifique /topic/pipeline/{id}
         messagingTemplate.convertAndSend("/topic/pipeline/" + execution.getId(), execution);
     }
 
@@ -46,28 +44,20 @@ public class PipelineManager {
 
             // 1. GIT CLONE
             execution.appendLog("--- ÉTAPE 1: CLONAGE DU DÉPÔT ---");
-            saveAndNotify(execution); // Notification intermédiaire pour voir le log
-
+            saveAndNotify(execution);
             gitService.cloneRepository(execution.getRepoUrl(), execution.getBranch(), tempDir);
 
             // 2. MAVEN BUILD
             execution.appendLog("--- ÉTAPE 2: BUILD & TEST MAVEN ---");
             saveAndNotify(execution);
-
             commandService.executeCommand("chmod +x mvnw", tempDir, execution);
-            commandService.executeCommand("./mvnw clean package", tempDir, execution); // Note: -DskipTests retiré
+            commandService.executeCommand("./mvnw clean package", tempDir, execution);
 
-            // 2.5 ANALYSE SONARQUBE & QUALITY GATE
+            // 2.5 ANALYSE SONARQUBE
             execution.appendLog("--- ÉTAPE 2.5: ANALYSE QUALITÉ ---");
-
-            // Extraction du nom du projet depuis l'URL
             String repoUrl = execution.getRepoUrl();
-            String projectKey = repoUrl.substring(repoUrl.lastIndexOf("/") + 1).replace(".git", "");
-            projectKey = projectKey.replaceAll("[^a-zA-Z0-9-_]", "-");
+            String projectKey = repoUrl.substring(repoUrl.lastIndexOf("/") + 1).replace(".git", "").replaceAll("[^a-zA-Z0-9-_]", "-");
 
-            execution.appendLog("Clé du projet SonarQube : " + projectKey);
-
-            // Commande SonarQube en mode SILENCIEUX (quiet = true)
             String sonarCmd = "./mvnw org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184:sonar " +
                     "-Dsonar.projectKey=" + projectKey + " " +
                     "-Dsonar.host.url=" + sonarUrl + " " +
@@ -76,62 +66,76 @@ public class PipelineManager {
                     "-Dorg.slf4j.simpleLogger.defaultLogLevel=warn";
 
             commandService.executeCommand(sonarCmd, tempDir, execution, true);
-
-            // Vérification du Quality Gate via l'API
             qualityGateService.verifyQuality(projectKey);
             execution.appendLog("✅ Quality Gate validé par SonarQube.");
-
 
             // 3. DOCKER BUILD
             execution.appendLog("--- ÉTAPE 3: BUILD DOCKER ---");
             saveAndNotify(execution);
-
             String imageNameId = "mon-app-metier:" + execution.getId();
             String imageNameLatest = "mon-app-metier:latest";
-
             commandService.executeCommand("docker build -t " + imageNameId + " -t " + imageNameLatest + " .", tempDir, execution);
 
-            // Sauvegarde de l'image en .tar
             execution.appendLog("--- SAUVEGARDE IMAGE ---");
             saveAndNotify(execution);
-
-            // Correction Rollback: on sauvegarde les deux tags dans le tar
             commandService.executeCommand("docker save -o app.tar " + imageNameId + " " + imageNameLatest, tempDir, execution);
 
             // 4. TRANSFERT SSH
             execution.appendLog("--- TRANSFERT VERS LA VM ---");
             saveAndNotify(execution);
-
             File imageFile = new File(tempDir, "app.tar");
             File composeFile = new File(tempDir, "docker-compose.yml");
-
             String remoteHome = "/home/" + sshService.getUser();
 
-            if (imageFile.exists()) {
-                sshService.transferFile(imageFile, remoteHome + "/app.tar");
-            } else {
-                throw new RuntimeException("Fichier app.tar non généré !");
-            }
+            if (imageFile.exists()) sshService.transferFile(imageFile, remoteHome + "/app.tar");
+            if (composeFile.exists()) sshService.transferFile(composeFile, remoteHome + "/docker-compose.yml");
 
-            if (composeFile.exists()) {
-                sshService.transferFile(composeFile, remoteHome + "/docker-compose.yml");
-            } else {
-                execution.appendLog("ATTENTION: docker-compose.yml introuvable à la racine !");
-            }
-
+            // 5. DÉPLOIEMENT
             // 5. DÉPLOIEMENT
             execution.appendLog("--- ÉTAPE 4: DÉPLOIEMENT SSH ---");
             saveAndNotify(execution);
 
-            // Commande robuste qui nettoie aussi les résidus de rollback (app-metier)
+            // CORRECTION ICI : On tue tout ce qui peut gêner (l'ancien nom ET le nouveau nom)
             String deployCmd =
-                    "docker stop app-metier || true && " +
-                            "docker rm app-metier || true && " +
+                    // 1. On force la suppression de l'ancien conteneur s'il traîne
+                    "docker rm -f app-metier || true && " +
+                            // 2. On force la suppression du nouveau conteneur s'il existe déjà
+                            "docker rm -f IMT-ArchitectureLogicielle-app || true && " +
+                            // 3. On charge la nouvelle image
                             "docker load -i " + remoteHome + "/app.tar && " +
+                            // 4. On redémarre proprement avec docker compose
+                            // Le 'down' va nettoyer le réseau, le 'up' va tout recréer
                             "docker compose -f " + remoteHome + "/docker-compose.yml down || true && " +
                             "docker compose -f " + remoteHome + "/docker-compose.yml up -d";
 
             sshService.executeRemoteCommand(deployCmd, execution);
+
+            // =================================================================
+            // 6. TEST D'INTRUSION (PENTEST)
+            // =================================================================
+            // CORRECTION 1 : Le marqueur doit correspondre exactement à celui du Frontend ("--- PENTEST ---")
+            execution.appendLog("--- PENTEST --- : LANCEMENT OWASP ZAP");
+            saveAndNotify(execution);
+
+            Thread.sleep(15000); // Attente démarrage app
+
+            String zapCmd = "docker run --rm " +
+                    "--network cicd-network " +
+                    "ghcr.io/zaproxy/zaproxy:stable " +
+                    "zap-api-scan.py " +                         // <--- Changement de script ici
+                    "-t http://IMT-ArchitectureLogicielle-app:8080/v3/api-docs " + // <--- URL du JSON Swagger
+                    "-f openapi " +                              // <--- Format explicite
+                    "-I";                                        // <--- Ignore les warnings (ne fail que sur ERROR)
+
+            try {
+                execution.appendLog("Exécution du scan API via Swagger...");
+                // On exécute la commande ZAP
+                sshService.executeRemoteCommand(zapCmd, execution);
+                execution.appendLog("✅ Pentest API validé : Aucune faille critique détectée.");
+            } catch (Exception e) {
+                throw new RuntimeException("⛔ PENTEST ÉCHOUÉ : Failles de sécurité détectées ! " + e.getMessage());
+            }
+            // =================================================================
 
             execution.setStatus(PipelineStatus.SUCCESS);
 
@@ -139,49 +143,38 @@ public class PipelineManager {
             execution.setStatus(PipelineStatus.FAILED);
             execution.appendLog("ERREUR CRITIQUE: " + e.getMessage());
 
-            // --- LOGIQUE ROLLBACK ---
+            // ROLLBACK
             execution.appendLog("--- TENTATIVE DE ROLLBACK ---");
-            saveAndNotify(execution); // Important pour voir que le rollback commence
-
-            var lastSuccessOpt = repository.findFirstByRepoUrlAndStatusOrderByStartTimeDesc(
-                    execution.getRepoUrl(),
-                    PipelineStatus.SUCCESS
-            );
+            saveAndNotify(execution);
+            var lastSuccessOpt = repository.findFirstByRepoUrlAndStatusOrderByStartTimeDesc(execution.getRepoUrl(), PipelineStatus.SUCCESS);
 
             if (lastSuccessOpt.isPresent()) {
-                PipelineExecution lastSuccess = lastSuccessOpt.get();
-                String previousImageTag = "mon-app-metier:" + lastSuccess.getId();
+                String previousImageTag = "mon-app-metier:" + lastSuccessOpt.get().getId();
                 String remoteHome = "/home/" + sshService.getUser();
                 String connectionString = "mongodb://user:pass@db:27017/carrentaldb?authSource=admin";
 
-                execution.appendLog("Version précédente trouvée : " + previousImageTag);
-
                 try {
-                    // Rollback corrigé avec réseau fixe (cicd-network)
+                    // Rollback plus agressif avec rm -f
                     String rollbackCmd =
-                            "docker stop IMT-ArchitectureLogicielle-app || true && " +
-                                    "docker rm IMT-ArchitectureLogicielle-app || true && " +
-                                    "docker compose -f " + remoteHome + "/docker-compose.yml up -d db && " +
-                                    "docker stop app-metier || true && " +
-                                    "docker rm app-metier || true && " +
+                            "docker rm -f IMT-ArchitectureLogicielle-app || true && " +
+                                    "docker rm -f app-metier || true && " +
                                     "docker run -d -p 8080:8080 " +
-                                    "--name app-metier " +
-                                    "--network cicd-network " + // Nom de réseau fixe
+                                    "--name IMT-ArchitectureLogicielle-app " +
+                                    "--network cicd-network " +
                                     "-e SPRING_DATA_MONGODB_URI='" + connectionString + "' " +
                                     previousImageTag;
 
                     sshService.executeRemoteCommand(rollbackCmd, execution);
-                    execution.appendLog("Rollback effectué avec succès vers l'ID " + lastSuccess.getId());
+                    execution.appendLog("Rollback effectué vers l'ID " + lastSuccessOpt.get().getId());
                 } catch (Exception rollbackEx) {
                     execution.appendLog("Echec du rollback : " + rollbackEx.getMessage());
                 }
             } else {
-                execution.appendLog("Aucune version précédente stable trouvée. Impossible de rollback.");
+                execution.appendLog("Aucune version précédente stable trouvée.");
             }
         } finally {
             execution.setEndTime(LocalDateTime.now());
-            saveAndNotify(execution); // Notification finale
-            // Nettoyage
+            saveAndNotify(execution);
             FileSystemUtils.deleteRecursively(tempDir);
         }
     }
