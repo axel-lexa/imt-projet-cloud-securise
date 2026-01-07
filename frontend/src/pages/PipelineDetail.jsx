@@ -18,9 +18,10 @@ import SockJS from 'sockjs-client';
 const STEPS_DEFINITION = [
     {id: 1, label: "Clonage du Dépôt (Git)", marker: "--- ÉTAPE 1"},
     {id: 2, label: "Build & Test (Maven)", marker: "--- ÉTAPE 2"},
-    {id: 3, label: "Construction Image Docker", marker: "--- ÉTAPE 3"},
-    {id: 4, label: "Transfert vers la VM", marker: "--- TRANSFERT"},
-    {id: 5, label: "Déploiement (SSH)", marker: "--- ÉTAPE 4"}
+    {id: 3, label: "Analyse SonarQube", marker: "--- ÉTAPE 2.5: ANALYSE QUALITÉ ---"},
+    {id: 4, label: "Construction Image Docker", marker: "--- ÉTAPE 3"},
+    {id: 5, label: "Transfert vers la VM", marker: "--- TRANSFERT"},
+    {id: 6, label: "Déploiement (SSH)", marker: "--- ÉTAPE 4"}
 ];
 
 export default function PipelineDetail() {
@@ -65,11 +66,10 @@ export default function PipelineDetail() {
     // 2. Connexion WebSocket (Temps réel)
     useEffect(() => {
         const client = new Client({
-            // On utilise SockJS comme fallback (http://localhost:8080/ws défini dans WebSocketConfig.java)
-            webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
+            webSocketFactory: () => new SockJS('/ws'),
 
             // Reconnexion automatique
-            reconnectDelay: 5000,
+            reconnectDelay: 2000,
 
             onConnect: () => {
                 console.log("Connecté au WebSocket !");

@@ -6,8 +6,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @Controller
 public class SpaController {
 
-    // Redirige toutes les routes non-API vers index.html pour que React Router gère le routing
-    @RequestMapping(value = "/{path:[^\\.]*}")
+    // On liste explicitement les routes React pour éviter de capturer "/ws" ou "/api"
+    // Si vous ajoutez une page React, ajoutez son chemin ici.
+    @RequestMapping(value = {
+            "/",
+            "/login",
+            "/dashboard/**",
+            "/pipeline/**",
+            "/history/**",
+            "/deployments/**",
+            "/users/**"
+    })
     public String redirect() {
         return "forward:/index.html";
     }
