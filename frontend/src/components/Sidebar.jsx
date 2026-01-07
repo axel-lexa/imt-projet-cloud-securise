@@ -15,7 +15,10 @@ export default function Sidebar() {
 
     const handleLogout = async () => {
         try {
-            await fetch("http://localhost:8081/logout", {method: "POST"});
+            await fetch("http://localhost:8081/logout", {
+                method: "POST",
+                credentials: "include"
+            });
             navigate("/login", {replace: true});
         } catch (error) {
             console.error("Erreur lors de la déconnexion:", error);
