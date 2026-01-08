@@ -127,3 +127,70 @@ ngrok http 8081
 
 Votre dashboard est maintenant prêt à analyser vos projets et gérer vos déploiements ! 🚀
 
+## 🏗️ Architecture et Fonctionnement
+
+### Schéma Global
+
+L'application repose sur une architecture centralisée où le Dashboard orchestre l'ensemble du cycle de vie CI/CD.
+
+![architecture.png](./images/architecture.png)
+
+```mermaid
+graph TD
+    User[👤 Utilisateur] -->|Interface Web| UI[💻 Frontend React]
+    GitHub[🐱 GitHub] -->|Webhook Push| API
+    UI -->|REST API / Websocket| API[⚙️ Backend Spring Boot]
+    
+    subgraph "CI/CD Dashboard Server"
+        API -->|1. Clone & Build| Build[🔧 Maven Build]
+        API -->|2. Analyse| Sonar[🔍 SonarQube]
+        API -->|3. Build Image| Docker[🐳 Docker Engine]
+        API -->|Persistance| DB[(🗄️ PostgreSQL)]
+    end
+    
+    subgraph "Target Production VM"
+        SSH[🔐 SSH Service]
+        App[🚀 Application Déployée]
+        ZAP[🛡️ OWASP ZAP Pentest]
+    end
+    
+    API -->|4. Transfert & Commandes| SSH
+    SSH -->|Deploy| App
+    SSH -->|5. Pentest Check| ZAP
+    ZAP -->|Scan API| App
+```
+
+### Fonctionnement du Pipeline (Workflow)
+
+Le pipeline est **séquentiel**. Si une étape échoue, le processus s'arrête immédiatement pour garantir la sécurité et la stabilité (**Fail-Fast**).
+
+![pipeline.png](./images/pipeline.png)
+
+```mermaid
+graph TD
+    Start([🚀 Start Pipeline]) --> Clone[1. Git Clone]
+    Clone -->|✅ OK| Maven[2. Maven Build & Test]
+    Maven -->|✅ OK| Sonar[3. SonarQube Analysis]
+    Sonar -->|✅ Quality Gate OK| Docker[4. Docker Build & Export]
+    Docker -->|✅ OK| Deploy[5. Deploy to VM (SSH)]
+    Deploy -->|✅ OK| Pentest[6. Pentest (OWASP ZAP)]
+    Pentest -->|✅ Security OK| Success([✅ SUCCÈS : App Déployée])
+
+    Clone -->|❌ Fail| Stop([⛔ STOP])
+    Maven -->|❌ Fail| Stop
+    Sonar -->|❌ Quality Gate Fail| Stop
+    Docker -->|❌ Fail| Stop
+    Deploy -->|❌ Fail| Rollback([🔙 ROLLBACK])
+    Pentest -->|❌ Security Fail| Rollback
+```
+
+**Détails des étapes :**
+
+1.  **Récupération du Code** : Clone du dépôt Git (URL ou Webhook).
+2.  **Compilation & Tests** : Compilation Java et tests unitaires (`mvn clean package`).
+3.  **Analyse Qualité** : Analyse **SonarQube**. Si le "Quality Gate" échoue (bugs, failles), le pipeline s'arrête.
+4.  **Conteneurisation** : Construction et export de l'image Docker (`docker build`, `docker save`).
+5.  **Déploiement Continu** : Transfert vers la VM (SSH/SCP), chargement de l'image et redémarrage du conteneur.
+6.  **Pentest (Test d'intrusion)** : L'outil **OWASP ZAP** est lancé sur la VM pour scanner l'API déployée. Si des failles critiques sont trouvées, le déploiement est annulé (**Auto-Rollback**).
+
+Ce processus garantit que seul du code fonctionnel et sécurisé est maintenu en production.
