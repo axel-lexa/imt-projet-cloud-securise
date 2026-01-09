@@ -48,7 +48,26 @@ Vous devez configurer un registry Docker pour stocker les images. Options :
 
 ### Variables d'environnement
 
-Ajoutez les variables suivantes dans votre fichier `.env` ou configurez-les dans votre environnement :
+Les valeurs utilisées dans les exemples ci‑dessous proviennent **de votre environnement système**. Vous pouvez les fournir de plusieurs façons selon le contexte :
+
+- **En local (sans Docker)** : exporter les variables dans votre shell avant de lancer l'application :
+
+  ```bash
+  export KUBECONFIG_PATH=/chemin/vers/votre/kubeconfig
+  export K8S_NAMESPACE=default
+  export REGISTRY_URL=docker.io
+  export REGISTRY_USERNAME=votre-username
+  export REGISTRY_PASSWORD=votre-password
+  ./mvnw spring-boot:run
+  ```
+
+- **Avec Docker / docker-compose** : les définir dans un fichier `.env` ou dans la section `environment:` de votre service, elles seront injectées dans le conteneur.
+- **Dans un pipeline CI/CD (GitHub Actions, GitLab, etc.)** : les créer comme **secrets**/variables protégées et les mapper en variables d’environnement pour le job qui lance l’application.
+- **Dans Kubernetes** : vous pouvez aussi créer un `Secret` / `ConfigMap` et les exposer comme variables d’environnement dans le `Deployment` (option avancée si vous déployez directement le dashboard dans Kubernetes).
+
+Une fois ces valeurs disponibles dans l’environnement, Spring Boot les récupère automatiquement via la syntaxe `${NOM_VAR:valeurParDefaut}` utilisée dans `application.properties`.
+
+Ajoutez ensuite les variables suivantes dans votre fichier `.env` ou configurez-les dans votre environnement :
 
 ```bash
 # Kubernetes Configuration
