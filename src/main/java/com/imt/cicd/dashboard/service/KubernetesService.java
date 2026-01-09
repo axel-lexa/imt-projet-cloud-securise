@@ -88,12 +88,12 @@ public class KubernetesService {
      */
     public void pushImageToRegistry(String imageTag, File dockerfileDir, PipelineExecution execution) throws Exception {
         execution.appendLog("Authentification au registry Docker...");
-        
+
         // Login au registry si credentials fournis
-        if (registryUsername != null && !registryUsername.isEmpty() && 
-            registryPassword != null && !registryPassword.isEmpty()) {
-            String loginCmd = String.format("docker login -u %s -p %s %s", 
-                registryUsername, registryPassword, registryUrl);
+        if (registryUsername != null && !registryUsername.isEmpty() &&
+                registryPassword != null && !registryPassword.isEmpty()) {
+            String loginCmd = String.format("docker login -u %s -p %s %s",
+                    registryUsername, registryPassword, registryUrl);
             commandService.executeCommand(loginCmd, dockerfileDir, execution);
         }
 
@@ -109,24 +109,24 @@ public class KubernetesService {
     public String getTargetNamespace(PipelineExecution execution) {
         // Utilise le namespace par défaut ou crée un namespace par application
         String namespace = defaultNamespace;
-        
+
         if (createNamespace) {
             // Crée un namespace unique par exécution si nécessaire
             String appName = getAppName(execution);
             namespace = "cicd-" + appName.toLowerCase().replaceAll("[^a-z0-9-]", "-");
-            
+
             try {
                 KubernetesClient client = getKubernetesClient();
                 Namespace ns = client.namespaces().withName(namespace).get();
                 if (ns == null) {
                     execution.appendLog("Création du namespace: " + namespace);
                     client.namespaces().resource(new NamespaceBuilder()
-                        .withNewMetadata()
-                        .withName(namespace)
-                        .addToLabels("managed-by", "cicd-dashboard")
-                        .endMetadata()
-                        .build())
-                        .create();
+                                    .withNewMetadata()
+                                    .withName(namespace)
+                                    .addToLabels("managed-by", "cicd-dashboard")
+                                    .endMetadata()
+                                    .build())
+                            .create();
                     execution.appendLog("✅ Namespace créé: " + namespace);
                 }
             } catch (Exception e) {
@@ -134,7 +134,7 @@ public class KubernetesService {
                 namespace = defaultNamespace;
             }
         }
-        
+
         return namespace;
     }
 
@@ -145,7 +145,7 @@ public class KubernetesService {
         String appName = getAppName(execution);
         String deploymentName = appName.toLowerCase().replaceAll("[^a-z0-9-]", "-");
         String namespace = getTargetNamespace(execution);
-        
+
         Map<String, String> labels = new HashMap<>();
         labels.put("app", deploymentName);
         labels.put("version", execution.getId().toString());
@@ -153,63 +153,76 @@ public class KubernetesService {
         labels.put("execution-id", execution.getId().toString());
 
         DeploymentBuilder builder = new DeploymentBuilder()
-            .withNewMetadata()
+                .withNewMetadata()
                 .withName(deploymentName)
                 .withNamespace(namespace)
                 .withLabels(labels)
-            .endMetadata()
-            .withNewSpec()
+                .endMetadata()
+                .withNewSpec()
                 .withReplicas(1)
                 .withNewSelector()
-                    .addToMatchLabels("app", deploymentName)
-                    .addToMatchLabels("version", execution.getId().toString())
+                .addToMatchLabels("app", deploymentName)
+                .addToMatchLabels("version", execution.getId().toString())
                 .endSelector()
                 .withNewTemplate()
-                    .withNewMetadata()
-                        .withLabels(labels)
-                    .endMetadata()
-                    .withNewSpec()
-                        .addNewContainer()
-                            .withName(deploymentName)
-                            .withImage(imageUrl)
-                            .addNewPort()
-                                .withContainerPort(appPort)
-                                .withProtocol("TCP")
-                            .endPort()
-                            .withNewResources()
-                                .addToRequests("cpu", new Quantity(defaultCpu))
-                                .addToRequests("memory", new Quantity(defaultMemory))
-                                .addToLimits("cpu", new Quantity(defaultCpu))
-                                .addToLimits("memory", new Quantity(defaultMemory))
-                            .endResources()
-                            .withNewLivenessProbe()
-                                .withNewHttpGet()
-                                    .withPath("/actuator/health")
-                                    .withPort(new IntOrString(appPort))
-                                .endHttpGet()
-                                .withInitialDelaySeconds(30)
-                                .withPeriodSeconds(10)
-                                .withTimeoutSeconds(5)
-                                .withFailureThreshold(3)
-                            .endLivenessProbe()
-                            .withNewReadinessProbe()
-                                .withNewHttpGet()
-                                    .withPath("/actuator/health/readiness")
-                                    .withPort(new IntOrString(appPort))
-                                .endHttpGet()
-                                .withInitialDelaySeconds(10)
-                                .withPeriodSeconds(5)
-                                .withTimeoutSeconds(3)
-                                .withFailureThreshold(3)
-                            .endReadinessProbe()
-                        .endContainer()
-                    .endSpec()
+                .withNewMetadata()
+                .withLabels(labels)
+                .endMetadata()
+                .withNewSpec()
+                .addNewContainer()
+                .withName(deploymentName)
+                .withImage(imageUrl)
+                .addNewPort()
+                .withContainerPort(appPort)
+                .withProtocol("TCP")
+                .endPort()
+                .withNewResources()
+                .addToRequests("cpu", new Quantity(defaultCpu))
+                .addToRequests("memory", new Quantity(defaultMemory))
+                .addToLimits("cpu", new Quantity(defaultCpu))
+                .addToLimits("memory", new Quantity(defaultMemory))
+                .endResources()
+                .withNewLivenessProbe()
+                .withNewHttpGet()
+                .withPath("/actuator/health")
+                .withPort(new IntOrString(appPort))
+                .endHttpGet()
+                .withInitialDelaySeconds(30)
+                .withPeriodSeconds(10)
+                .withTimeoutSeconds(5)
+                .withFailureThreshold(3)
+                .endLivenessProbe()
+                .withNewReadinessProbe()
+                .withNewHttpGet()
+                .withPath("/actuator/health/readiness")
+                .withPort(new IntOrString(appPort))
+                .endHttpGet()
+                .withInitialDelaySeconds(10)
+                .withPeriodSeconds(5)
+                .withTimeoutSeconds(3)
+                .withFailureThreshold(3)
+                .endReadinessProbe()
+                .endContainer()
+                .addNewContainer()
+                .withName("mongo-sidecar")
+                .withImage("mongo:5.0") // Version stable
+                .addNewPort()
+                .withContainerPort(27017)
+                .endPort()
+                .addNewEnv()
+                .withName("MONGO_INITDB_ROOT_USERNAME").withValue("user")
+                .endEnv()
+                .addNewEnv()
+                .withName("MONGO_INITDB_ROOT_PASSWORD").withValue("pass")
+                .endEnv()
+                .endContainer()
+                .endSpec()
                 .endTemplate()
-            .endSpec();
-        
+                .endSpec();
+
         // Ajoute les ImagePullSecrets si nécessaire
         addImagePullSecrets(builder);
-        
+
         return builder.build();
     }
 
@@ -227,22 +240,22 @@ public class KubernetesService {
         labels.put("managed-by", "cicd-dashboard");
 
         ServiceBuilder serviceBuilder = new ServiceBuilder()
-            .withNewMetadata()
+                .withNewMetadata()
                 .withName(serviceName)
                 .withNamespace(getTargetNamespace(execution))
                 .withLabels(labels)
-            .endMetadata()
-            .withNewSpec()
+                .endMetadata()
+                .withNewSpec()
                 .withType(serviceType)
                 .addToSelector("app", deploymentName)
                 .addToSelector("version", execution.getId().toString())
                 .addNewPort()
-                    .withPort(port)
-                    .withTargetPort(new IntOrString(appPort))
-                    .withProtocol("TCP")
-                    .withName("http")
+                .withPort(port)
+                .withTargetPort(new IntOrString(appPort))
+                .withProtocol("TCP")
+                .withName("http")
                 .endPort()
-            .endSpec();
+                .endSpec();
 
         return serviceBuilder.build();
     }
@@ -252,18 +265,18 @@ public class KubernetesService {
      */
     public void deployApplication(String namespace, PipelineExecution execution, String imageTag) throws Exception {
         execution.appendLog("Génération des manifests Kubernetes...");
-        
+
         KubernetesClient client = getKubernetesClient();
-        
+
         // Génère les manifests
         Deployment deployment = generateDeploymentManifest(execution, imageTag);
         io.fabric8.kubernetes.api.model.Service service = generateServiceManifest(execution, appPort);
-        
+
         String deploymentName = deployment.getMetadata().getName();
         String serviceName = service.getMetadata().getName();
-        
+
         execution.appendLog("Application des manifests dans le namespace: " + namespace);
-        
+
         // Supprime l'ancien déploiement s'il existe
         try {
             Deployment existing = client.apps().deployments().inNamespace(namespace).withName(deploymentName).get();
@@ -272,20 +285,20 @@ public class KubernetesService {
                 client.apps().deployments().inNamespace(namespace).withName(deploymentName).delete();
                 // Attendre la suppression
                 client.apps().deployments().inNamespace(namespace).withName(deploymentName)
-                    .waitUntilCondition(d -> d == null, 60, TimeUnit.SECONDS);
+                        .waitUntilCondition(d -> d == null, 60, TimeUnit.SECONDS);
             }
         } catch (Exception e) {
             log.debug("No existing deployment to delete: " + e.getMessage());
         }
-        
+
         // Crée le déploiement
         execution.appendLog("Création du Deployment: " + deploymentName);
         client.apps().deployments().inNamespace(namespace).resource(deployment).createOrReplace();
-        
+
         // Crée ou met à jour le service
         execution.appendLog("Création du Service: " + serviceName);
         client.services().inNamespace(namespace).resource(service).createOrReplace();
-        
+
         execution.appendLog("✅ Manifests appliqués avec succès");
     }
 
@@ -295,20 +308,20 @@ public class KubernetesService {
     public void waitForDeploymentReady(String namespace, PipelineExecution execution) throws Exception {
         KubernetesClient client = getKubernetesClient();
         String deploymentName = getAppName(execution).toLowerCase().replaceAll("[^a-z0-9-]", "-");
-        
+
         execution.appendLog("Attente du déploiement: " + deploymentName);
-        
+
         try {
             client.apps().deployments().inNamespace(namespace).withName(deploymentName)
-                .waitUntilReady(5, TimeUnit.MINUTES);
-            
+                    .waitUntilReady(5, TimeUnit.MINUTES);
+
             execution.appendLog("✅ Déploiement prêt");
-            
+
             // Vérifie le statut des pods
             var pods = client.pods().inNamespace(namespace)
-                .withLabel("app", deploymentName)
-                .list();
-            
+                    .withLabel("app", deploymentName)
+                    .list();
+
             if (pods != null && pods.getItems() != null) {
                 for (var pod : pods.getItems()) {
                     String podName = pod.getMetadata().getName();
@@ -328,38 +341,38 @@ public class KubernetesService {
     public String getServiceUrl(String namespace, PipelineExecution execution) {
         KubernetesClient client = getKubernetesClient();
         String serviceName = getAppName(execution).toLowerCase().replaceAll("[^a-z0-9-]", "-");
-        
+
         try {
             io.fabric8.kubernetes.api.model.Service service = client.services().inNamespace(namespace).withName(serviceName).get();
             if (service == null) {
                 return "Service non trouvé";
             }
-            
+
             String type = service.getSpec().getType();
-            
+
             if ("LoadBalancer".equals(type)) {
                 String loadBalancerIp = service.getStatus().getLoadBalancer().getIngress().stream()
-                    .findFirst()
-                    .map(ingress -> ingress.getIp() != null ? ingress.getIp() : ingress.getHostname())
-                    .orElse("En attente d'IP...");
+                        .findFirst()
+                        .map(ingress -> ingress.getIp() != null ? ingress.getIp() : ingress.getHostname())
+                        .orElse("En attente d'IP...");
                 return "http://" + loadBalancerIp + ":" + appPort;
             } else if ("NodePort".equals(type)) {
                 Integer nodePort = service.getSpec().getPorts().stream()
-                    .findFirst()
-                    .map(ServicePort::getNodePort)
-                    .orElse(null);
+                        .findFirst()
+                        .map(ServicePort::getNodePort)
+                        .orElse(null);
                 if (nodePort != null) {
                     return "http://<node-ip>:" + nodePort;
                 }
             } else {
                 // ClusterIP
-                return String.format("Service %s.%s.svc.cluster.local:%d (ClusterIP)", 
-                    serviceName, namespace, appPort);
+                return String.format("Service %s.%s.svc.cluster.local:%d (ClusterIP)",
+                        serviceName, namespace, appPort);
             }
         } catch (Exception e) {
             log.error("Failed to get service URL", e);
         }
-        
+
         return "URL non disponible";
     }
 
@@ -368,28 +381,28 @@ public class KubernetesService {
      */
     public void rollbackDeployment(String namespace, String deploymentName, String previousVersion, PipelineExecution execution) throws Exception {
         KubernetesClient client = getKubernetesClient();
-        
+
         execution.appendLog("Rollback vers la version: " + previousVersion);
-        
+
         Deployment deployment = client.apps().deployments().inNamespace(namespace).withName(deploymentName).get();
         if (deployment == null) {
             throw new RuntimeException("Deployment not found: " + deploymentName);
         }
-        
+
         // Met à jour l'image avec la version précédente
         String imageUrl = deployment.getSpec().getTemplate().getSpec().getContainers().get(0).getImage();
         String baseImage = imageUrl.substring(0, imageUrl.lastIndexOf(":"));
         String newImageUrl = baseImage + ":" + previousVersion;
-        
+
         deployment.getSpec().getTemplate().getSpec().getContainers().get(0).setImage(newImageUrl);
         deployment.getMetadata().getLabels().put("version", previousVersion);
         deployment.getSpec().getSelector().getMatchLabels().put("version", previousVersion);
         deployment.getSpec().getTemplate().getMetadata().getLabels().put("version", previousVersion);
-        
+
         client.apps().deployments().inNamespace(namespace).resource(deployment).createOrReplace();
-        
+
         execution.appendLog("✅ Rollback effectué vers: " + newImageUrl);
-        
+
         // Attend que le rollback soit prêt
         waitForDeploymentReady(namespace, execution);
     }
@@ -400,8 +413,8 @@ public class KubernetesService {
     private String getAppName(PipelineExecution execution) {
         String repoUrl = execution.getRepoUrl();
         String appName = repoUrl.substring(repoUrl.lastIndexOf("/") + 1)
-            .replace(".git", "")
-            .replaceAll("[^a-zA-Z0-9-_]", "-");
+                .replace(".git", "")
+                .replaceAll("[^a-zA-Z0-9-_]", "-");
         return appName.isEmpty() ? "app" : appName;
     }
 
@@ -409,17 +422,17 @@ public class KubernetesService {
      * Ajoute les ImagePullSecrets au Deployment si nécessaire
      */
     private void addImagePullSecrets(DeploymentBuilder builder) {
-        if (registryUsername != null && !registryUsername.isEmpty() && 
-            registryPassword != null && !registryPassword.isEmpty()) {
+        if (registryUsername != null && !registryUsername.isEmpty() &&
+                registryPassword != null && !registryPassword.isEmpty()) {
             builder.editSpec()
-                .editTemplate()
+                    .editTemplate()
                     .editSpec()
-                        .addNewImagePullSecret()
-                            .withName("registry-secret")
-                        .endImagePullSecret()
+                    .addNewImagePullSecret()
+                    .withName("registry-secret")
+                    .endImagePullSecret()
                     .endSpec()
-                .endTemplate()
-            .endSpec();
+                    .endTemplate()
+                    .endSpec();
         }
     }
 
@@ -428,40 +441,40 @@ public class KubernetesService {
      */
     public void createRegistrySecret(String namespace, PipelineExecution execution) {
         try {
-            if (registryUsername == null || registryUsername.isEmpty() || 
-                registryPassword == null || registryPassword.isEmpty()) {
+            if (registryUsername == null || registryUsername.isEmpty() ||
+                    registryPassword == null || registryPassword.isEmpty()) {
                 return; // Pas de credentials, pas besoin de secret
             }
-        
-        KubernetesClient client = getKubernetesClient();
-        String secretName = "registry-secret";
-        
-        // Vérifie si le secret existe déjà
-        Secret existing = client.secrets().inNamespace(namespace).withName(secretName).get();
-        if (existing != null) {
-            execution.appendLog("Secret registry existe déjà");
-            return;
-        }
-        
-        // Crée le secret Docker registry au format correct
-        String auth = java.util.Base64.getEncoder().encodeToString((registryUsername + ":" + registryPassword).getBytes());
-        String dockerConfigJson = String.format(
-            "{\"auths\":{\"%s\":{\"username\":\"%s\",\"password\":\"%s\",\"auth\":\"%s\"}}}",
-            registryUrl,
-            registryUsername,
-            registryPassword,
-            auth
-        );
-        
-        Secret secret = new SecretBuilder()
-            .withNewMetadata()
-                .withName(secretName)
-                .withNamespace(namespace)
-            .endMetadata()
-            .withType("kubernetes.io/dockerconfigjson")
-            .addToData(".dockerconfigjson", java.util.Base64.getEncoder().encodeToString(dockerConfigJson.getBytes()))
-            .build();
-        
+
+            KubernetesClient client = getKubernetesClient();
+            String secretName = "registry-secret";
+
+            // Vérifie si le secret existe déjà
+            Secret existing = client.secrets().inNamespace(namespace).withName(secretName).get();
+            if (existing != null) {
+                execution.appendLog("Secret registry existe déjà");
+                return;
+            }
+
+            // Crée le secret Docker registry au format correct
+            String auth = java.util.Base64.getEncoder().encodeToString((registryUsername + ":" + registryPassword).getBytes());
+            String dockerConfigJson = String.format(
+                    "{\"auths\":{\"%s\":{\"username\":\"%s\",\"password\":\"%s\",\"auth\":\"%s\"}}}",
+                    registryUrl,
+                    registryUsername,
+                    registryPassword,
+                    auth
+            );
+
+            Secret secret = new SecretBuilder()
+                    .withNewMetadata()
+                    .withName(secretName)
+                    .withNamespace(namespace)
+                    .endMetadata()
+                    .withType("kubernetes.io/dockerconfigjson")
+                    .addToData(".dockerconfigjson", java.util.Base64.getEncoder().encodeToString(dockerConfigJson.getBytes()))
+                    .build();
+
             client.secrets().inNamespace(namespace).resource(secret).create();
             execution.appendLog("✅ Secret registry créé: " + secretName);
         } catch (Exception e) {
