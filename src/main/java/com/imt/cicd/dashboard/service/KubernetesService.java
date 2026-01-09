@@ -55,6 +55,18 @@ public class KubernetesService {
     @Value("${kubernetes.app.port:8080}")
     private int appPort;
 
+    @Value("${kubernetes.deployment.timeout.minutes:15}")
+    private int deploymentTimeoutMinutes;
+
+    @Value("${kubernetes.healthcheck.enabled:true}")
+    private boolean healthCheckEnabled;
+
+    @Value("${kubernetes.healthcheck.path:/actuator/health}")
+    private String healthCheckPath;
+
+    @Value("${kubernetes.healthcheck.readiness.path:/actuator/health/readiness}")
+    private String readinessCheckPath;
+
     public KubernetesService(CommandService commandService) {
         this.commandService = commandService;
     }
@@ -152,6 +164,46 @@ public class KubernetesService {
         labels.put("managed-by", "cicd-dashboard");
         labels.put("execution-id", execution.getId().toString());
 
+        // Construit le container builder avec ou sans health checks
+        io.fabric8.kubernetes.api.model.ContainerBuilder containerBuilder = new io.fabric8.kubernetes.api.model.ContainerBuilder()
+            .withName(deploymentName)
+            .withImage(imageUrl)
+            .addNewPort()
+                .withContainerPort(appPort)
+                .withProtocol("TCP")
+            .endPort()
+            .withNewResources()
+                .addToRequests("cpu", new Quantity(defaultCpu))
+                .addToRequests("memory", new Quantity(defaultMemory))
+                .addToLimits("cpu", new Quantity(defaultCpu))
+                .addToLimits("memory", new Quantity(defaultMemory))
+            .endResources();
+        
+        // Ajoute les health checks seulement si activés
+        if (healthCheckEnabled) {
+            containerBuilder
+                .withNewLivenessProbe()
+                    .withNewHttpGet()
+                        .withPath(healthCheckPath)
+                        .withPort(new IntOrString(appPort))
+                    .endHttpGet()
+                    .withInitialDelaySeconds(60)
+                    .withPeriodSeconds(10)
+                    .withTimeoutSeconds(5)
+                    .withFailureThreshold(5)
+                .endLivenessProbe()
+                .withNewReadinessProbe()
+                    .withNewHttpGet()
+                        .withPath(readinessCheckPath)
+                        .withPort(new IntOrString(appPort))
+                    .endHttpGet()
+                    .withInitialDelaySeconds(30)
+                    .withPeriodSeconds(5)
+                    .withTimeoutSeconds(3)
+                    .withFailureThreshold(5)
+                .endReadinessProbe();
+        }
+        
         DeploymentBuilder builder = new DeploymentBuilder()
             .withNewMetadata()
                 .withName(deploymentName)
@@ -169,40 +221,7 @@ public class KubernetesService {
                         .withLabels(labels)
                     .endMetadata()
                     .withNewSpec()
-                        .addNewContainer()
-                            .withName(deploymentName)
-                            .withImage(imageUrl)
-                            .addNewPort()
-                                .withContainerPort(appPort)
-                                .withProtocol("TCP")
-                            .endPort()
-                            .withNewResources()
-                                .addToRequests("cpu", new Quantity(defaultCpu))
-                                .addToRequests("memory", new Quantity(defaultMemory))
-                                .addToLimits("cpu", new Quantity(defaultCpu))
-                                .addToLimits("memory", new Quantity(defaultMemory))
-                            .endResources()
-                            .withNewLivenessProbe()
-                                .withNewHttpGet()
-                                    .withPath("/actuator/health")
-                                    .withPort(new IntOrString(appPort))
-                                .endHttpGet()
-                                .withInitialDelaySeconds(30)
-                                .withPeriodSeconds(10)
-                                .withTimeoutSeconds(5)
-                                .withFailureThreshold(3)
-                            .endLivenessProbe()
-                            .withNewReadinessProbe()
-                                .withNewHttpGet()
-                                    .withPath("/actuator/health/readiness")
-                                    .withPort(new IntOrString(appPort))
-                                .endHttpGet()
-                                .withInitialDelaySeconds(10)
-                                .withPeriodSeconds(5)
-                                .withTimeoutSeconds(3)
-                                .withFailureThreshold(3)
-                            .endReadinessProbe()
-                        .endContainer()
+                        .addToContainers(containerBuilder.build())
                     .endSpec()
                 .endTemplate()
             .endSpec();
@@ -296,15 +315,127 @@ public class KubernetesService {
         KubernetesClient client = getKubernetesClient();
         String deploymentName = getAppName(execution).toLowerCase().replaceAll("[^a-z0-9-]", "-");
         
-        execution.appendLog("Attente du déploiement: " + deploymentName);
+        execution.appendLog("Attente du déploiement: " + deploymentName + " (timeout: " + deploymentTimeoutMinutes + " minutes)");
         
         try {
-            client.apps().deployments().inNamespace(namespace).withName(deploymentName)
-                .waitUntilReady(5, TimeUnit.MINUTES);
+            // Vérifie périodiquement le statut et affiche des informations
+            long startTime = System.currentTimeMillis();
+            long timeoutMs = deploymentTimeoutMinutes * 60 * 1000L;
             
-            execution.appendLog("✅ Déploiement prêt");
+            while (System.currentTimeMillis() - startTime < timeoutMs) {
+                Deployment deployment = client.apps().deployments().inNamespace(namespace).withName(deploymentName).get();
+                if (deployment == null) {
+                    execution.appendLog("⚠️ Déploiement non trouvé");
+                    throw new RuntimeException("Deployment not found: " + deploymentName);
+                }
+                
+                // Vérifie le statut du déploiement
+                var status = deployment.getStatus();
+                if (status != null) {
+                    Integer readyReplicas = status.getReadyReplicas();
+                    Integer replicas = status.getReplicas();
+                    Integer availableReplicas = status.getAvailableReplicas();
+                    
+                    execution.appendLog(String.format("Statut: %d/%d replicas prêtes, %d disponibles", 
+                        readyReplicas != null ? readyReplicas : 0,
+                        replicas != null ? replicas : 0,
+                        availableReplicas != null ? availableReplicas : 0));
+                    
+                    if (readyReplicas != null && readyReplicas > 0 && 
+                        replicas != null && readyReplicas.equals(replicas)) {
+                        execution.appendLog("✅ Déploiement prêt");
+                        break;
+                    }
+                }
+                
+                // Vérifie les pods et leurs statuts
+                var pods = client.pods().inNamespace(namespace)
+                    .withLabel("app", deploymentName)
+                    .list();
+                
+                if (pods != null && pods.getItems() != null && !pods.getItems().isEmpty()) {
+                    for (var pod : pods.getItems()) {
+                        String podName = pod.getMetadata().getName();
+                        String phase = pod.getStatus().getPhase();
+                        execution.appendLog("Pod " + podName + ": " + phase);
+                        
+                        // Affiche les conditions du pod
+                        if (pod.getStatus().getConditions() != null) {
+                            for (var condition : pod.getStatus().getConditions()) {
+                                if ("Ready".equals(condition.getType()) || "ContainersReady".equals(condition.getType())) {
+                                    execution.appendLog("  - " + condition.getType() + ": " + condition.getStatus() + 
+                                        (condition.getMessage() != null ? " (" + condition.getMessage() + ")" : ""));
+                                }
+                            }
+                        }
+                        
+                        // Affiche les événements récents du pod
+                        try {
+                            var events = client.v1().events().inNamespace(namespace)
+                                .withField("involvedObject.name", podName)
+                                .list();
+                            if (events != null && events.getItems() != null && !events.getItems().isEmpty()) {
+                                var recentEvents = events.getItems().stream()
+                                    .sorted((e1, e2) -> e2.getLastTimestamp().compareTo(e1.getLastTimestamp()))
+                                    .limit(3)
+                                    .toList();
+                                for (var event : recentEvents) {
+                                    execution.appendLog("  Événement: " + event.getReason() + " - " + event.getMessage());
+                                }
+                            }
+                        } catch (Exception e) {
+                            // Ignore les erreurs de récupération d'événements
+                        }
+                    }
+                } else {
+                    execution.appendLog("⚠️ Aucun pod trouvé pour le déploiement");
+                }
+                
+                // Attend 10 secondes avant la prochaine vérification
+                Thread.sleep(10000);
+            }
             
-            // Vérifie le statut des pods
+            // Vérification finale avec waitUntilReady pour s'assurer que c'est vraiment prêt
+            try {
+                client.apps().deployments().inNamespace(namespace).withName(deploymentName)
+                    .waitUntilReady(1, TimeUnit.MINUTES);
+                execution.appendLog("✅ Déploiement confirmé prêt");
+            } catch (KubernetesClientException e) {
+                // Si ça échoue encore, on récupère plus d'informations
+                execution.appendLog("⚠️ Le déploiement n'est pas complètement prêt");
+                logDiagnostics(namespace, deploymentName, execution, client);
+                throw new RuntimeException("Deployment not ready after " + deploymentTimeoutMinutes + " minutes: " + e.getMessage(), e);
+            }
+            
+        } catch (KubernetesClientException e) {
+            execution.appendLog("⚠️ Timeout ou erreur lors de l'attente du déploiement: " + e.getMessage());
+            logDiagnostics(namespace, deploymentName, execution, client);
+            throw new RuntimeException("Deployment not ready: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while waiting for deployment", e);
+        }
+    }
+    
+    /**
+     * Affiche des diagnostics détaillés en cas d'échec
+     */
+    private void logDiagnostics(String namespace, String deploymentName, PipelineExecution execution, KubernetesClient client) {
+        try {
+            execution.appendLog("--- DIAGNOSTICS ---");
+            
+            // Événements du déploiement
+            var deploymentEvents = client.v1().events().inNamespace(namespace)
+                .withField("involvedObject.name", deploymentName)
+                .list();
+            if (deploymentEvents != null && deploymentEvents.getItems() != null) {
+                execution.appendLog("Événements du déploiement:");
+                for (var event : deploymentEvents.getItems()) {
+                    execution.appendLog("  - " + event.getReason() + ": " + event.getMessage());
+                }
+            }
+            
+            // Pods et leurs logs
             var pods = client.pods().inNamespace(namespace)
                 .withLabel("app", deploymentName)
                 .list();
@@ -312,13 +443,26 @@ public class KubernetesService {
             if (pods != null && pods.getItems() != null) {
                 for (var pod : pods.getItems()) {
                     String podName = pod.getMetadata().getName();
-                    String phase = pod.getStatus().getPhase();
-                    execution.appendLog("Pod " + podName + ": " + phase);
+                    execution.appendLog("Pod: " + podName);
+                    
+                    // Logs du pod (dernières 20 lignes)
+                    try {
+                        String logs = client.pods().inNamespace(namespace).withName(podName).getLog(true);
+                        if (logs != null && !logs.isEmpty()) {
+                            String[] logLines = logs.split("\n");
+                            int start = Math.max(0, logLines.length - 20);
+                            execution.appendLog("  Derniers logs:");
+                            for (int i = start; i < logLines.length; i++) {
+                                execution.appendLog("    " + logLines[i]);
+                            }
+                        }
+                    } catch (Exception e) {
+                        execution.appendLog("  Impossible de récupérer les logs: " + e.getMessage());
+                    }
                 }
             }
-        } catch (KubernetesClientException e) {
-            execution.appendLog("⚠️ Timeout ou erreur lors de l'attente du déploiement: " + e.getMessage());
-            throw new RuntimeException("Deployment not ready: " + e.getMessage(), e);
+        } catch (Exception e) {
+            execution.appendLog("Erreur lors de la récupération des diagnostics: " + e.getMessage());
         }
     }
 
