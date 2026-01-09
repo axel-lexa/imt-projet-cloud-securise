@@ -20,9 +20,16 @@ services:
       - VM_PRIVATE_KEY_PATH=/root/.ssh/id_rsa
       # URL SonarQube interne
       - SONAR_URL=http://sonarqube:9000
+      # --- AJOUTS OBLIGATOIRES POUR KUBERNETES --- (NEW)
+      - REGISTRY_URL=${REGISTRY_URL}
+      #      - REGISTRY_USERNAME=${REGISTRY_USERNAME}
+      #      - REGISTRY_PASSWORD=${REGISTRY_PASSWORD}
+      - KUBECONFIG_PATH=/root/.kube/config
+      - K8S_NAMESPACE=${K8S_NAMESPACE}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${VM_PRIVATE_KEY_PATH}:/root/.ssh/id_rsa
+      - ${KUBECONFIG_PATH}:/root/.kube/config
     depends_on:
       - postgres
       - sonarqube
